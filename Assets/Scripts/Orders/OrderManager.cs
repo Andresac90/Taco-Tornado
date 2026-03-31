@@ -50,46 +50,28 @@ namespace TacoTornado
             }
         }
 
-        /*  private void Update()
-          {
-              if (!GameManager.Instance.isShiftActive) return;
-
-              // Update shift progress for difficulty scaling
-              shiftProgress = 1f - (GameManager.Instance.shiftTimer / GameConstants.SHIFT_DURATION);
-
-              // Spawn new orders based on timer and queue capacity
-              spawnTimer -= Time.deltaTime;
-              if (spawnTimer <= 0f && activeOrders.Count < maxQueueSize)
-              {
-                  SpawnOrder();
-
-                  // Interval decreases as shift progresses to increase difficulty
-                  currentSpawnInterval = Mathf.Lerp(
-                      GameConstants.ORDER_SPAWN_INTERVAL_BASE,
-                      GameConstants.ORDER_SPAWN_INTERVAL_MIN,
-                      shiftProgress
-                  );
-                  spawnTimer = currentSpawnInterval;
-              }
-
-              // Update patience on all active orders
-              UpdatePatience();
-          }*/
-
-        //CHANGES HERE: The Update() method has been modified to remove the spawn timer logic.
         private void Update()
         {
-            // The shift must be active for logic to run
             if (!GameManager.Instance.isShiftActive) return;
 
-            // Update shift progress for difficulty scaling (prices and complexity)
+            // Update shift progress for difficulty scaling
             shiftProgress = 1f - (GameManager.Instance.shiftTimer / GameConstants.SHIFT_DURATION);
 
-            // REMOVED: spawnTimer and SpawnOrder() calls.
-            // The SpawnOrder() method should now be called by TacoQueueManager 
-            // only when a customer reaches the window.
+            // Spawn new orders
+            spawnTimer -= Time.deltaTime;
+            if (spawnTimer <= 0f && activeOrders.Count < maxQueueSize)
+            {
+                SpawnOrder();
+                // Interval decreases as shift progresses
+                currentSpawnInterval = Mathf.Lerp(
+                    GameConstants.ORDER_SPAWN_INTERVAL_BASE,
+                    GameConstants.ORDER_SPAWN_INTERVAL_MIN,
+                    shiftProgress
+                );
+                spawnTimer = currentSpawnInterval;
+            }
 
-            // We still update patience for any orders currently in the queue
+            // Update patience on all orders
             UpdatePatience();
         }
 
@@ -97,7 +79,7 @@ namespace TacoTornado
         //  ORDER GENERATION
         // ──────────────────────────────────────────────
 
-        public void SpawnOrder()
+        private void SpawnOrder()
         {
             TacoOrder order = new TacoOrder
             {
@@ -107,7 +89,7 @@ namespace TacoTornado
                 toppings = RandomToppings(),
                 salsas = RandomSalsas(),
                 state = OrderState.Waiting,
-                basePrice = 5f + shiftProgress * 3f, // Prices increase as the shift progresses
+                basePrice = 5f + shiftProgress * 3f, // prices go up at night
                 tipMultiplier = 1f
             };
 
@@ -146,7 +128,7 @@ namespace TacoTornado
             };
 
             var result = new List<IngredientType>();
-            // Complexity increases later in the shift
+            // 1-3 toppings, more later in shift
             int count = Random.Range(1, Mathf.Min(4, 2 + Mathf.FloorToInt(shiftProgress * 2)));
             var available = new List<IngredientType>(allToppings);
 
@@ -169,6 +151,7 @@ namespace TacoTornado
             };
 
             var result = new List<IngredientType>();
+            // 0-2 salsas
             int count = Random.Range(0, 3);
             var available = new List<IngredientType>(allSalsas);
 
@@ -208,7 +191,7 @@ namespace TacoTornado
 
             foreach (var order in expiredOrders)
             {
-                GameManager.Instance.FailOrder(order); // Notify GameManager of failure
+                GameManager.Instance.FailOrder(order);
                 activeOrders.Remove(order);
                 orderPatience.Remove(order.orderId);
                 OnOrderRemoved?.Invoke(order);
@@ -235,7 +218,7 @@ namespace TacoTornado
                 return;
             }
 
-            // Find the best matching order from the current queue
+            // Find the best matching order
             TacoOrder bestMatch = null;
             float bestAccuracy = 0f;
 
@@ -249,9 +232,9 @@ namespace TacoTornado
                 }
             }
 
-            // Minimum accuracy threshold to accept a submission
             if (bestMatch != null && bestAccuracy >= 0.3f)
             {
+                // Accept the taco
                 activeOrders.Remove(bestMatch);
                 orderPatience.Remove(bestMatch.orderId);
                 GameManager.Instance.CompleteOrder(bestMatch, bestAccuracy);
@@ -303,13 +286,13 @@ namespace TacoTornado
             activeOrders.Clear();
             orderPatience.Clear();
             nextOrderId = 1;
-            spawnTimer = 3f; // Initial delay before the first customer arrives
+            spawnTimer = 3f; // slight delay before first order
             currentSpawnInterval = GameConstants.ORDER_SPAWN_INTERVAL_BASE;
         }
 
         private void OnShiftEnd()
         {
-            // All remaining orders are marked as failed when the shift timer hits zero
+            // Fail all remaining orders
             foreach (var order in activeOrders)
             {
                 GameManager.Instance.FailOrder(order);
