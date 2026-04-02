@@ -58,6 +58,7 @@ namespace TacoTornado.UI
                 GameManager.Instance.OnShiftStarted += OnShiftStarted;
                 GameManager.Instance.OnShiftEnded += OnShiftEnded;
                 GameManager.Instance.OnMoneyChanged += UpdateMoney;
+                GameManager.Instance.OnGameOver += OnGameOver; // Listen for game over to show shift end panel [Changed by Akshay]
             }
             if (OrderManager.Instance != null)
             {
@@ -73,6 +74,7 @@ namespace TacoTornado.UI
                 GameManager.Instance.OnShiftStarted -= OnShiftStarted;
                 GameManager.Instance.OnShiftEnded -= OnShiftEnded;
                 GameManager.Instance.OnMoneyChanged -= UpdateMoney;
+                GameManager.Instance.OnGameOver -= OnGameOver; // Stop listening for game over [Changed by Akshay]
             }
             if (OrderManager.Instance != null)
             {
@@ -115,7 +117,7 @@ namespace TacoTornado.UI
         private void UpdateOrdersCompleted()
         {
             if (ordersCompletedText != null)
-                ordersCompletedText.text = $"Served: {GameManager.Instance.ordersCompleted}";
+                ordersCompletedText.text = $" {GameManager.Instance.ordersCompleted}";//CHANGED by Akshay
         }
 
         // ──────────────────────────────────────────────
@@ -148,28 +150,35 @@ namespace TacoTornado.UI
             GameObject ticket = Instantiate(orderTicketPrefab, orderTicketContainer);
             ticketObjects[order.orderId] = ticket;
 
+
+            // Changed by Akshay
             // Build ticket text
-            var textComponent = ticket.GetComponentInChildren<TextMeshProUGUI>();
-            if (textComponent != null)
+            // Find the Taco Name component specifically
+            var nameComponent = ticket.transform.Find("txt_tacoName")?.GetComponent<TextMeshProUGUI>();
+            if (nameComponent != null)
             {
-                string ingredients = "";
-                ingredients += ShortName(order.tortillaType) + "\n";
-                ingredients += ShortName(order.proteinType) + "\n";
+                // Sets the Header (Order # and Protein)
+                nameComponent.text = $"#{order.orderId} {ShortName(order.proteinType)}";
+            }
+
+            // Find the Ingredients component specifically
+            var ingredientsComponent = ticket.transform.Find("txt_ingredients")?.GetComponent<TextMeshProUGUI>();
+            if (ingredientsComponent != null)
+            {
+                string ingredientsList = "";
+                ingredientsList += ShortName(order.tortillaType) + "\n";
+
                 foreach (var t in order.toppings)
-                    ingredients += ShortName(t) + "\n";
+                    ingredientsList += ShortName(t) + "\n";
+
                 foreach (var s in order.salsas)
-                    ingredients += ShortName(s) + "\n";
+                    ingredientsList += ShortName(s) + "\n";
 
-                textComponent.text = $"#{order.orderId}\n{ingredients}";
+                ingredientsComponent.text = ingredientsList;
             }
+            // End of changes by Akshay
 
-            // Patience bar (child named "PatienceBar")
-            var bar = ticket.transform.Find("PatienceBar");
-            if (bar != null)
-            {
-                var image = bar.GetComponent<Image>();
-                if (image != null) image.fillAmount = 1f;
-            }
+
         }
 
         private void RemoveOrderTicket(TacoOrder order)
@@ -239,6 +248,35 @@ namespace TacoTornado.UI
                     $"Balance:  ${gm.money:F2}";
             }
         }
+
+
+
+        // New method to handle Game Over scenario [Added by Akshay]
+        private void OnGameOver(string reason)
+        {
+            if (shiftEndPanel == null) return;
+
+            shiftEndPanel.SetActive(true);
+
+            // Update the panel to show Game Over instead of Shift Complete
+            if (shiftSummaryText != null)
+            {
+                shiftSummaryText.text = $"<color=red>GAME OVER</color>\n\n" +
+                                       $"REASON: {reason}\n\n" +
+                                       $"Final Balance: ${GameManager.Instance.money:F2}";
+            }
+
+            // You can also access the gameOver text component if you have a direct reference
+            var shiftEndUI = shiftEndPanel.GetComponent<UIshiftEnd>();
+            if (shiftEndUI != null && shiftEndUI.gameOver != null)
+            {
+                shiftEndUI.gameOver.text = "GAME OVER";
+            }
+        }
+        //End of new method [Added by Akshay]
+
+
+
 
         // ──────────────────────────────────────────────
         //  HELPERS

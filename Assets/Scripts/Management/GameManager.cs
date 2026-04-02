@@ -1,5 +1,4 @@
 // GameManager.cs — Central game state, shift management, and scoring
-
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -17,6 +16,9 @@ namespace TacoTornado
         public event Action<TacoOrder> OnOrderCompleted;
         public event Action<TacoOrder> OnOrderFailed;
 
+        // New Game Over Event 
+        public event Action<string> OnGameOver; // Added by Akshay
+
         // ── State ──
         [Header("Runtime State")]
         public float money;
@@ -31,6 +33,10 @@ namespace TacoTornado
         public int perfectOrders;
         public float shiftRevenue;
         public float shiftTips;
+
+        // Lose Condition Settings
+        [Header("Lose Conditions")]
+        public int maxFailedOrders = 5;
 
         // ── Inventory ──
         public Dictionary<IngredientType, int> ingredientStock = new Dictionary<IngredientType, int>();
@@ -47,6 +53,7 @@ namespace TacoTornado
 
             money = GameConstants.STARTING_MONEY;
             InitializeStock();
+            Debug.Log("[LOGIC CHECK] Inventory Initialized with 20/40 units of all ingredients.");//Added by Akshay
         }
 
         private void Update()
@@ -54,9 +61,40 @@ namespace TacoTornado
             if (!isShiftActive) return;
 
             shiftTimer -= Time.deltaTime;
+
+
+            //Check Lose Conditions every frame
+            CheckLoseConditions();
+
             if (shiftTimer <= 0f)
             {
                 EndShift();
+            }
+        }
+
+        // ──────────────────────────────────────────────
+        //  WIN/LOSE LOGIC [Checked by Akshay]
+        // ──────────────────────────────────────────────
+
+        private void CheckLoseConditions()
+        {
+            // Lose Condition 1: Too many failed orders
+            if (ordersFailed >= maxFailedOrders)
+            {
+                EndShift();
+                OnGameOver?.Invoke("Too many failed orders!");
+                return;
+            }
+
+            // Lose Condition 2: Out of Tortillas
+            // We check if the player has 0 stock of all tortilla types
+            bool hasTortillas = GetStock(IngredientType.CornTortilla) > 0 ||
+                                GetStock(IngredientType.FlourTortilla) > 0;
+
+            if (!hasTortillas)
+            {
+                EndShift();
+                OnGameOver?.Invoke("Out of tortillas!");// Added by Akshay
             }
         }
 
@@ -92,8 +130,7 @@ namespace TacoTornado
             ApplySpoilage();
 
             OnShiftEnded?.Invoke();
-            Debug.Log($"[GameManager] Shift ended — Revenue: ${shiftRevenue:F2}, Tips: ${shiftTips:F2}, " +
-                      $"Completed: {ordersCompleted}, Failed: {ordersFailed}, Perfect: {perfectOrders}");
+            Debug.Log($"[GameManager] Shift ended — Revenue: ${shiftRevenue:F2}, Tips: ${shiftTips:F2}");
         }
 
         // ──────────────────────────────────────────────
@@ -128,8 +165,7 @@ namespace TacoTornado
             OnMoneyChanged?.Invoke(money);
             OnOrderCompleted?.Invoke(order);
 
-            Debug.Log($"[GameManager] Order #{order.orderId} completed — " +
-                      $"Accuracy: {accuracy:P0}, Revenue: ${revenue:F2}, Tip: ${tip:F2}");
+            Debug.Log($"[GameManager] Order #{order.orderId} completed — Accuracy: {accuracy:P0}");
         }
 
         public void FailOrder(TacoOrder order)
@@ -146,10 +182,9 @@ namespace TacoTornado
 
         private void InitializeStock()
         {
-            // Start with a basic stock of everything for the prototype
             foreach (IngredientType type in Enum.GetValues(typeof(IngredientType)))
             {
-                ingredientStock[type] = 20;
+                ingredientStock[type] = 20; // Default starting stock [cite: 121]
             }
         }
 
@@ -171,11 +206,7 @@ namespace TacoTornado
 
         public void PurchaseIngredient(IngredientType type, int quantity, float totalCost)
         {
-            if (money < totalCost)
-            {
-                Debug.LogWarning("[GameManager] Not enough money!");
-                return;
-            }
+            if (money < totalCost) return;
 
             money -= totalCost;
             if (!ingredientStock.ContainsKey(type))
@@ -187,7 +218,6 @@ namespace TacoTornado
 
         private void ApplySpoilage()
         {
-            // Perishable proteins and produce lose stock overnight
             IngredientType[] perishables = {
                 IngredientType.CarneAsada, IngredientType.Pollo,
                 IngredientType.Carnitas, IngredientType.AlPastor,
@@ -201,8 +231,6 @@ namespace TacoTornado
                 {
                     int spoiled = Mathf.CeilToInt(ingredientStock[type] * GameConstants.SPOILAGE_RATE);
                     ingredientStock[type] = Mathf.Max(0, ingredientStock[type] - spoiled);
-                    if (spoiled > 0)
-                        Debug.Log($"[GameManager] Spoilage: lost {spoiled}x {type}");
                 }
             }
         }
@@ -211,10 +239,7 @@ namespace TacoTornado
         //  FINANCE HELPERS
         // ──────────────────────────────────────────────
 
-        public float GetShiftProfit()
-        {
-            return shiftRevenue + shiftTips;
-        }
+        public float GetShiftProfit() { return shiftRevenue + shiftTips; }
 
         public void SpendMoney(float amount)
         {
@@ -222,9 +247,6 @@ namespace TacoTornado
             OnMoneyChanged?.Invoke(money);
         }
 
-        public bool CanAfford(float amount)
-        {
-            return money >= amount;
-        }
+        public bool CanAfford(float amount) { return money >= amount; }
     }
 }
