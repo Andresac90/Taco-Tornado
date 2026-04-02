@@ -29,6 +29,22 @@ namespace TacoTornado.UI
 
         private Dictionary<int, GameObject> ticketObjects = new Dictionary<int, GameObject>();
 
+        #region Singleton
+        private static GameHUD _instance;
+        public static GameHUD Instance => _instance;
+
+        void Awake()
+        {
+            if (_instance == null)
+            {
+                _instance = this;
+            }
+            else
+            {
+                Destroy(gameObject);
+            }
+        }
+        #endregion
         private void Start()
         {
             if (shiftEndPanel != null)
