@@ -21,7 +21,7 @@ namespace TacoTornado
             CreateLighting();
 
             // ── TRUCK INTERIOR ──
-            CreateTruckGeometry();
+            //CreateTruckGeometry();
 
             // ── PLAYER ──
             CreatePlayer();
@@ -97,47 +97,7 @@ namespace TacoTornado
             pLight.range = 6f;
             interiorLight.transform.position = new Vector3(0f, 2.5f, 0f);
         }
-
-        // ──────────────────────────────────────────────
-        //  TRUCK GEOMETRY (placeholder boxes)
-        // ──────────────────────────────────────────────
-
-        private void CreateTruckGeometry()
-        {
-            Color truckColor = new Color(0.85f, 0.85f, 0.8f);
-            Color counterColor = new Color(0.6f, 0.55f, 0.5f);
-            Color floorColor = new Color(0.35f, 0.35f, 0.3f);
-
-            // Floor
-            CreateBox("Floor", new Vector3(0, -0.05f, 0), new Vector3(4f, 0.1f, 3f), floorColor, false);
-
-            // Counter (in front of player)
-            CreateBox("Counter", new Vector3(0, 0.5f, 1.2f), new Vector3(4f, 1f, 0.6f), counterColor, false);
-
-            // Back wall
-            CreateBox("BackWall", new Vector3(0, 1.5f, -1.5f), new Vector3(4f, 3f, 0.1f), truckColor, false);
-
-            // Left wall
-            CreateBox("LeftWall", new Vector3(-2f, 1.5f, 0f), new Vector3(0.1f, 3f, 3f), truckColor, false);
-
-            // Right wall
-            CreateBox("RightWall", new Vector3(2f, 1.5f, 0f), new Vector3(0.1f, 3f, 3f), truckColor, false);
-
-            // Ceiling
-            CreateBox("Ceiling", new Vector3(0, 3f, 0f), new Vector3(4f, 0.1f, 3f), truckColor, false);
-
-            // Service window opening (just a visual frame — no glass)
-            CreateBox("WindowFrameTop", new Vector3(0, 2.6f, 1.5f), new Vector3(2f, 0.15f, 0.1f),
-                new Color(0.3f, 0.3f, 0.3f), false);
-            CreateBox("WindowFrameLeft", new Vector3(-1f, 2f, 1.5f), new Vector3(0.1f, 1.2f, 0.1f),
-                new Color(0.3f, 0.3f, 0.3f), false);
-            CreateBox("WindowFrameRight", new Vector3(1f, 2f, 1.5f), new Vector3(0.1f, 1.2f, 0.1f),
-                new Color(0.3f, 0.3f, 0.3f), false);
-
-            // Ground outside (visible through window)
-            CreateBox("OutsideGround", new Vector3(0, -0.1f, 4f), new Vector3(10f, 0.1f, 6f),
-                new Color(0.4f, 0.4f, 0.35f), false);
-        }
+        
 
         // ──────────────────────────────────────────────
         //  PLAYER (Camera)
