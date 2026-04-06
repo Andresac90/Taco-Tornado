@@ -21,9 +21,15 @@ namespace TacoTornado.Cooking
             if (player.IsHolding()) return;
 
             // Check stock
-            if (!GameManager.Instance.ConsumeIngredient(ingredientType))
+            if (GameManager.Instance == null || !GameManager.Instance.ConsumeIngredient(ingredientType))
             {
                 Debug.Log($"[Source] Out of {ingredientType}!");
+                return;
+            }
+
+            if (ingredientPrefab == null)
+            {
+                Debug.LogError($"[Source] No ingredient prefab assigned for {ingredientType}!");
                 return;
             }
 
@@ -31,6 +37,11 @@ namespace TacoTornado.Cooking
             GameObject obj = Instantiate(ingredientPrefab,
                 spawnPoint != null ? spawnPoint.position : transform.position + Vector3.up * 0.3f,
                 Quaternion.identity);
+
+            // === FIX: Activate the spawned object ===
+            // Prefab templates are stored as inactive (SetActive(false)).
+            // Instantiate clones the inactive state, so we must activate the clone.
+            obj.SetActive(true);
 
             Ingredient ingredient = obj.GetComponent<Ingredient>();
             if (ingredient == null)
@@ -49,6 +60,7 @@ namespace TacoTornado.Cooking
 
         public string GetInteractPrompt()
         {
+            if (GameManager.Instance == null) return $"Grab {ingredientType}";
             int stock = GameManager.Instance.GetStock(ingredientType);
             return $"Grab {ingredientType} ({stock} left)";
         }

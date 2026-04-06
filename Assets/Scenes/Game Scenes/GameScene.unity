@@ -774,7 +774,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 1, z: 0, w: 0}
-  m_LocalPosition: {x: 2.828, y: 2.242, z: -4.702}
+  m_LocalPosition: {x: 2.973, y: 2.242, z: -4.702}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1216,7 +1216,7 @@ Transform:
   m_GameObject: {fileID: 511503914}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 4.34, y: 1.833, z: -5.542}
+  m_LocalPosition: {x: 4.466, y: 1.833, z: -5.542}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1663,7 +1663,7 @@ BoxCollider:
   m_LayerOverridePriority: 0
   m_IsTrigger: 0
   m_ProvidesContacts: 0
-  m_Enabled: 1
+  m_Enabled: 0
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
@@ -3836,6 +3836,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1308077261}
   - component: {fileID: 1308077262}
+  - component: {fileID: 1308077263}
   m_Layer: 10
   m_Name: GrillStation
   m_TagString: Untagged
@@ -3882,6 +3883,27 @@ MonoBehaviour:
   - {fileID: 1416966201}
   - {fileID: 883013823}
   maxSlots: 4
+--- !u!65 &1308077263
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1308077260}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 3
+  m_Size: {x: 1.1495118, y: 0.056067944, z: 1}
+  m_Center: {x: -0.060023814, y: -0.092585206, z: 3.51885e-17}
 --- !u!1 &1365645107
 GameObject:
   m_ObjectHideFlags: 0
