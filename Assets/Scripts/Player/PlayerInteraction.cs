@@ -29,7 +29,7 @@ namespace TacoTornado.Player
 
         private void Update()
         {
-            if (!GameManager.Instance.isShiftActive) return;
+            if (GameManager.Instance == null || !GameManager.Instance.isShiftActive) return;
 
             HandleRaycast();
             HandleInput();
@@ -52,6 +52,14 @@ namespace TacoTornado.Player
                         highlightedObject = hit.collider.gameObject;
                         SetHighlight(highlightedObject, true);
                     }
+
+                    // === HUD PROMPT INTEGRATION (Task A3) ===
+                    if (UI.GameHUD.Instance != null)
+                    {
+                        UI.GameHUD.Instance.ShowInteractPrompt(
+                            currentTarget.GetInteractPrompt());
+                    }
+
                     return;
                 }
             }
@@ -62,6 +70,12 @@ namespace TacoTornado.Player
                 ClearHighlight();
                 currentTarget = null;
                 highlightedObject = null;
+
+                // === HIDE HUD PROMPT (Task A3) ===
+                if (UI.GameHUD.Instance != null)
+                {
+                    UI.GameHUD.Instance.HideInteractPrompt();
+                }
             }
         }
 

@@ -45,20 +45,31 @@ namespace TacoTornado.UI
             }
         }
         #endregion
+
         private void Start()
         {
             if (shiftEndPanel != null)
                 shiftEndPanel.SetActive(false);
+
+            // Hide interact prompt at start
+            if (interactPromptText != null)
+                interactPromptText.gameObject.SetActive(false);
         }
 
         private void OnEnable()
+        {
+            // Use Invoke to delay subscription by one frame so managers can initialize first
+            Invoke(nameof(SubscribeToEvents), 0f);
+        }
+
+        private void SubscribeToEvents()
         {
             if (GameManager.Instance != null)
             {
                 GameManager.Instance.OnShiftStarted += OnShiftStarted;
                 GameManager.Instance.OnShiftEnded += OnShiftEnded;
                 GameManager.Instance.OnMoneyChanged += UpdateMoney;
-                GameManager.Instance.OnGameOver += OnGameOver; // Listen for game over to show shift end panel [Changed by Akshay]
+                GameManager.Instance.OnGameOver += OnGameOver;
             }
             if (OrderManager.Instance != null)
             {
@@ -74,7 +85,7 @@ namespace TacoTornado.UI
                 GameManager.Instance.OnShiftStarted -= OnShiftStarted;
                 GameManager.Instance.OnShiftEnded -= OnShiftEnded;
                 GameManager.Instance.OnMoneyChanged -= UpdateMoney;
-                GameManager.Instance.OnGameOver -= OnGameOver; // Stop listening for game over [Changed by Akshay]
+                GameManager.Instance.OnGameOver -= OnGameOver;
             }
             if (OrderManager.Instance != null)
             {
@@ -85,7 +96,8 @@ namespace TacoTornado.UI
 
         private void Update()
         {
-            if (!GameManager.Instance.isShiftActive) return;
+            // === NULL-SAFE CHECK — prevents NullReferenceException when GameManager doesn't exist yet ===
+            if (GameManager.Instance == null || !GameManager.Instance.isShiftActive) return;
 
             UpdateTimer();
             UpdateOrdersCompleted();
@@ -117,7 +129,7 @@ namespace TacoTornado.UI
         private void UpdateOrdersCompleted()
         {
             if (ordersCompletedText != null)
-                ordersCompletedText.text = $" {GameManager.Instance.ordersCompleted}";//CHANGED by Akshay
+                ordersCompletedText.text = $" {GameManager.Instance.ordersCompleted}";
         }
 
         // ──────────────────────────────────────────────
@@ -150,14 +162,10 @@ namespace TacoTornado.UI
             GameObject ticket = Instantiate(orderTicketPrefab, orderTicketContainer);
             ticketObjects[order.orderId] = ticket;
 
-
-            // Changed by Akshay
-            // Build ticket text
             // Find the Taco Name component specifically
             var nameComponent = ticket.transform.Find("txt_tacoName")?.GetComponent<TextMeshProUGUI>();
             if (nameComponent != null)
             {
-                // Sets the Header (Order # and Protein)
                 nameComponent.text = $"#{order.orderId} {ShortName(order.proteinType)}";
             }
 
@@ -176,9 +184,6 @@ namespace TacoTornado.UI
 
                 ingredientsComponent.text = ingredientsList;
             }
-            // End of changes by Akshay
-
-
         }
 
         private void RemoveOrderTicket(TacoOrder order)
@@ -249,16 +254,12 @@ namespace TacoTornado.UI
             }
         }
 
-
-
-        // New method to handle Game Over scenario [Added by Akshay]
         private void OnGameOver(string reason)
         {
             if (shiftEndPanel == null) return;
 
             shiftEndPanel.SetActive(true);
 
-            // Update the panel to show Game Over instead of Shift Complete
             if (shiftSummaryText != null)
             {
                 shiftSummaryText.text = $"<color=red>GAME OVER</color>\n\n" +
@@ -266,17 +267,12 @@ namespace TacoTornado.UI
                                        $"Final Balance: ${GameManager.Instance.money:F2}";
             }
 
-            // You can also access the gameOver text component if you have a direct reference
             var shiftEndUI = shiftEndPanel.GetComponent<UIshiftEnd>();
             if (shiftEndUI != null && shiftEndUI.gameOver != null)
             {
                 shiftEndUI.gameOver.text = "GAME OVER";
             }
         }
-        //End of new method [Added by Akshay]
-
-
-
 
         // ──────────────────────────────────────────────
         //  HELPERS
@@ -286,21 +282,21 @@ namespace TacoTornado.UI
         {
             switch (type)
             {
-                case IngredientType.CornTortilla:  return "Corn";
+                case IngredientType.CornTortilla: return "Corn";
                 case IngredientType.FlourTortilla: return "Flour";
-                case IngredientType.CarneAsada:    return "Asada";
-                case IngredientType.Pollo:         return "Pollo";
-                case IngredientType.Carnitas:      return "Carnitas";
-                case IngredientType.AlPastor:      return "Pastor";
-                case IngredientType.Cilantro:      return "Cilantro";
-                case IngredientType.Onion:         return "Onion";
-                case IngredientType.Lime:          return "Lime";
-                case IngredientType.Cheese:        return "Cheese";
-                case IngredientType.Lettuce:       return "Lettuce";
-                case IngredientType.SalsaVerde:    return "S. Verde";
-                case IngredientType.SalsaRoja:     return "S. Roja";
-                case IngredientType.Guacamole:     return "Guac";
-                case IngredientType.SourCream:     return "Cream";
+                case IngredientType.CarneAsada: return "Asada";
+                case IngredientType.Pollo: return "Pollo";
+                case IngredientType.Carnitas: return "Carnitas";
+                case IngredientType.AlPastor: return "Pastor";
+                case IngredientType.Cilantro: return "Cilantro";
+                case IngredientType.Onion: return "Onion";
+                case IngredientType.Lime: return "Lime";
+                case IngredientType.Cheese: return "Cheese";
+                case IngredientType.Lettuce: return "Lettuce";
+                case IngredientType.SalsaVerde: return "S. Verde";
+                case IngredientType.SalsaRoja: return "S. Roja";
+                case IngredientType.Guacamole: return "Guac";
+                case IngredientType.SourCream: return "Cream";
                 default: return type.ToString();
             }
         }

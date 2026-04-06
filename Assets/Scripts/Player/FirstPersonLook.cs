@@ -19,8 +19,8 @@ namespace TacoTornado.Player
 
         private void Start()
         {
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            // Don't lock cursor here — let GameManager.StartShift() handle it
+            // This prevents the cursor from locking before the shift starts
 
             // Initialize rotation from current transform
             Vector3 euler = transform.eulerAngles;
@@ -31,7 +31,7 @@ namespace TacoTornado.Player
 
         private void Update()
         {
-            if (!GameManager.Instance.isShiftActive) return;
+            if (GameManager.Instance == null || !GameManager.Instance.isShiftActive) return;
 
             float mouseX = Input.GetAxis("Mouse X") * mouseSensitivity;
             float mouseY = Input.GetAxis("Mouse Y") * mouseSensitivity;
