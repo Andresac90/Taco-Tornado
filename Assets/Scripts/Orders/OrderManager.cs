@@ -50,36 +50,30 @@ namespace TacoTornado
             }
         }
 
-        private void Update()
+        private void Update() // chnaged by Akshay - now only handles patience updates, spawning is triggered by TacoQueueManager when customers arrive at the window
         {
             if (!GameManager.Instance.isShiftActive) return;
 
-            // Update shift progress for difficulty scaling
-            shiftProgress = 1f - (GameManager.Instance.shiftTimer / GameConstants.SHIFT_DURATION);
-
-            // Spawn new orders
+            // comment out the spawnTimer block below:
+            /*
             spawnTimer -= Time.deltaTime;
             if (spawnTimer <= 0f && activeOrders.Count < maxQueueSize)
             {
                 SpawnOrder();
-                // Interval decreases as shift progresses
-                currentSpawnInterval = Mathf.Lerp(
-                    GameConstants.ORDER_SPAWN_INTERVAL_BASE,
-                    GameConstants.ORDER_SPAWN_INTERVAL_MIN,
-                    shiftProgress
-                );
+                currentSpawnInterval = Mathf.Lerp(...);
                 spawnTimer = currentSpawnInterval;
             }
+            */
 
-            // Update patience on all orders
+            // Keeping this here for reference, but actual spawning is now triggered by TacoQueueManager when customers arrive at the window
             UpdatePatience();
         }
 
         // ──────────────────────────────────────────────
-        //  ORDER GENERATION
+        //  ORDER GENERATION //chnaged by Akshay 
         // ──────────────────────────────────────────────
 
-        private void SpawnOrder()
+        public void SpawnOrder()// called by TacoQueueManager when a customer arrives at the window (private to public)
         {
             TacoOrder order = new TacoOrder
             {
