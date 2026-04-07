@@ -10,6 +10,7 @@ namespace TacoTornado
     //  ENUMS
     // ──────────────────────────────────────────────
 
+    //INGREDIENTS
     public enum IngredientType
     {
         // Tortillas
