@@ -1,5 +1,9 @@
-// OrderManager.cs — Generates taco orders and scores submissions
-// Attach to an empty GameObject in the scene
+// OrderManager.cs — Infinite mode order generation with wave-based difficulty scaling
+// Orders use only the trimmed 8-ingredient set.
+// Difficulty increases every ORDERS_PER_WAVE completed orders:
+//   - Patience shrinks (customers wait less)
+//   - Spawn interval decreases (more customers arriving)
+//   - Orders add more toppings/salsas
 
 using System.Collections.Generic;
 using UnityEngine;
@@ -10,21 +14,29 @@ namespace TacoTornado
     {
         public static OrderManager Instance { get; private set; }
 
-        // ── Events ──
+        // ── Events ────────────────────────────────────────────────────────────
         public event System.Action<TacoOrder> OnNewOrder;
         public event System.Action<TacoOrder> OnOrderRemoved;
+        public event System.Action<int>       OnWaveChanged; // fires when wave advances
 
-        [Header("Order Queue")]
+        // ── Inspector ─────────────────────────────────────────────────────────
+        [Header("Queue")]
         [SerializeField] private int maxQueueSize = GameConstants.MAX_QUEUE_SIZE;
 
-        // Active orders
+        // ── Runtime ───────────────────────────────────────────────────────────
         public List<TacoOrder> activeOrders = new List<TacoOrder>();
-        private int nextOrderId = 1;
+
+        private int   nextOrderId      = 1;
         private float spawnTimer;
         private float currentSpawnInterval;
 
-        // Difficulty scaling
-        private float shiftProgress; // 0..1
+        // Wave / difficulty
+        public  int   currentWave      = 0;
+        private int   ordersThisWave   = 0; // completed orders since last wave bump
+
+        private Dictionary<int, float> orderPatience = new Dictionary<int, float>();
+
+        // ── Unity ─────────────────────────────────────────────────────────────
 
         private void Awake()
         {
@@ -36,8 +48,9 @@ namespace TacoTornado
         {
             if (GameManager.Instance != null)
             {
-                GameManager.Instance.OnShiftStarted += OnShiftStart;
-                GameManager.Instance.OnShiftEnded += OnShiftEnd;
+                GameManager.Instance.OnShiftStarted  += OnShiftStart;
+                GameManager.Instance.OnShiftEnded    += OnShiftEnd;
+                GameManager.Instance.OnOrderCompleted += OnOrderCompletedCallback;
             }
         }
 
@@ -45,55 +58,118 @@ namespace TacoTornado
         {
             if (GameManager.Instance != null)
             {
-                GameManager.Instance.OnShiftStarted -= OnShiftStart;
-                GameManager.Instance.OnShiftEnded -= OnShiftEnd;
+                GameManager.Instance.OnShiftStarted  -= OnShiftStart;
+                GameManager.Instance.OnShiftEnded    -= OnShiftEnd;
+                GameManager.Instance.OnOrderCompleted -= OnOrderCompletedCallback;
             }
         }
 
-        private void Update() // chnaged by Akshay - now only handles patience updates, spawning is triggered by TacoQueueManager when customers arrive at the window
+        private void Update()
         {
-            if (!GameManager.Instance.isShiftActive) return;
+            if (GameManager.Instance == null || !GameManager.Instance.isShiftActive) return;
 
-            // comment out the spawnTimer block below:
-            /*
+            // Auto spawn (TacoQueueManager overrides this when NPCs are in use)
             spawnTimer -= Time.deltaTime;
             if (spawnTimer <= 0f && activeOrders.Count < maxQueueSize)
             {
                 SpawnOrder();
-                currentSpawnInterval = Mathf.Lerp(...);
                 spawnTimer = currentSpawnInterval;
             }
-            */
 
-            // Keeping this here for reference, but actual spawning is now triggered by TacoQueueManager when customers arrive at the window
             UpdatePatience();
         }
 
-        // ──────────────────────────────────────────────
-        //  ORDER GENERATION //chnaged by Akshay 
-        // ──────────────────────────────────────────────
+        // ── Shift Lifecycle ───────────────────────────────────────────────────
 
-        public void SpawnOrder()// called by TacoQueueManager when a customer arrives at the window (private to public)
+        private void OnShiftStart()
         {
+            activeOrders.Clear();
+            orderPatience.Clear();
+            nextOrderId    = 1;
+            currentWave    = 0;
+            ordersThisWave = 0;
+
+            currentSpawnInterval = GameConstants.BASE_SPAWN_INTERVAL;
+            spawnTimer           = 3f; // short delay before first order
+
+            Debug.Log("[Orders] Infinite mode started — Wave 0");
+        }
+
+        private void OnShiftEnd()
+        {
+            foreach (var order in activeOrders)
+                GameManager.Instance.FailOrder(order);
+
+            activeOrders.Clear();
+            orderPatience.Clear();
+        }
+
+        private void OnOrderCompletedCallback(TacoOrder order)
+        {
+            ordersThisWave++;
+            if (ordersThisWave >= GameConstants.ORDERS_PER_WAVE)
+            {
+                ordersThisWave = 0;
+                AdvanceWave();
+            }
+        }
+
+        // ── Wave Difficulty ───────────────────────────────────────────────────
+
+        private void AdvanceWave()
+        {
+            currentWave++;
+
+            // Shrink spawn interval (more customers)
+            currentSpawnInterval = Mathf.Max(
+                GameConstants.MIN_SPAWN_INTERVAL,
+                GameConstants.BASE_SPAWN_INTERVAL - currentWave * GameConstants.SPAWN_DECAY_PER_WAVE);
+
+            Debug.Log($"[Orders] ── WAVE {currentWave} ──  " +
+                      $"Spawn: {currentSpawnInterval:F1}s  " +
+                      $"Patience: {GetCurrentPatience():F1}s");
+
+            OnWaveChanged?.Invoke(currentWave);
+        }
+
+        public float GetCurrentPatience()
+        {
+            return Mathf.Max(
+                GameConstants.MIN_PATIENCE,
+                GameConstants.BASE_PATIENCE - currentWave * GameConstants.PATIENCE_DECAY_PER_WAVE);
+        }
+
+        // ── Order Generation ──────────────────────────────────────────────────
+
+        /// <summary>Spawns a new order. Called by Update or TacoQueueManager.</summary>
+        public void SpawnOrder()
+        {
+            if (activeOrders.Count >= maxQueueSize) return;
+
             TacoOrder order = new TacoOrder
             {
-                orderId = nextOrderId++,
-                tortillaType = RandomTortilla(),
-                proteinType = RandomProtein(),
-                toppings = RandomToppings(),
-                salsas = RandomSalsas(),
-                state = OrderState.Waiting,
-                basePrice = 5f + shiftProgress * 3f, // prices go up at night
-                tipMultiplier = 1f
+                orderId           = nextOrderId++,
+                tortillaType      = RandomTortilla(),
+                proteinType       = RandomProtein(),
+                toppings          = RandomToppings(),
+                salsas            = RandomSalsas(),
+                state             = OrderState.Waiting,
+                basePrice         = 5f + currentWave * 0.5f, // price rises with wave
+                tipMultiplier     = 1f,
+                patienceDuration  = GetCurrentPatience(),
             };
 
             activeOrders.Add(order);
+            orderPatience[order.orderId] = order.patienceDuration;
             OnNewOrder?.Invoke(order);
 
-            Debug.Log($"[Orders] New order #{order.orderId}: " +
-                      $"{order.tortillaType}, {order.proteinType}, " +
-                      $"{order.toppings.Count} toppings, {order.salsas.Count} salsas");
+            Debug.Log($"[Orders] #{order.orderId}  {order.tortillaType} | {order.proteinType} | " +
+                      $"toppings:{order.toppings.Count} salsas:{order.salsas.Count}  " +
+                      $"patience:{order.patienceDuration:F0}s  wave:{currentWave}");
         }
+
+        // ── Ingredient Randomizers ────────────────────────────────────────────
+        // Only use the 8 trimmed ingredients.
 
         private IngredientType RandomTortilla()
         {
@@ -102,153 +178,123 @@ namespace TacoTornado
 
         private IngredientType RandomProtein()
         {
-            IngredientType[] proteins = {
-                IngredientType.CarneAsada,
-                IngredientType.Pollo,
-                IngredientType.Carnitas,
-                IngredientType.AlPastor
-            };
-            return proteins[Random.Range(0, proteins.Length)];
+            return Random.value > 0.5f ? IngredientType.AlPastor : IngredientType.Discada;
         }
 
         private List<IngredientType> RandomToppings()
         {
-            IngredientType[] allToppings = {
-                IngredientType.Cilantro,
-                IngredientType.Onion,
-                IngredientType.Lime,
-                IngredientType.Cheese,
-                IngredientType.Lettuce
-            };
+            // Wave 0: 0-1 toppings. Wave 3+: 1-2 toppings.
+            int maxCount  = currentWave >= 3 ? 2 : 1;
+            int count     = Random.Range(currentWave == 0 ? 0 : 1, maxCount + 1);
 
-            var result = new List<IngredientType>();
-            // 1-3 toppings, more later in shift
-            int count = Random.Range(1, Mathf.Min(4, 2 + Mathf.FloorToInt(shiftProgress * 2)));
-            var available = new List<IngredientType>(allToppings);
+            var all       = new List<IngredientType> { IngredientType.Cilantro, IngredientType.Onion };
+            var result    = new List<IngredientType>();
 
-            for (int i = 0; i < count && available.Count > 0; i++)
-            {
-                int idx = Random.Range(0, available.Count);
-                result.Add(available[idx]);
-                available.RemoveAt(idx);
-            }
+            Shuffle(all);
+            for (int i = 0; i < Mathf.Min(count, all.Count); i++)
+                result.Add(all[i]);
+
             return result;
         }
 
         private List<IngredientType> RandomSalsas()
         {
-            IngredientType[] allSalsas = {
-                IngredientType.SalsaVerde,
-                IngredientType.SalsaRoja,
-                IngredientType.Guacamole,
-                IngredientType.SourCream
-            };
+            // Wave 0: no salsa. Wave 2+: 0-1. Wave 5+: 1-2.
+            if (currentWave < 2) return new List<IngredientType>();
 
-            var result = new List<IngredientType>();
-            // 0-2 salsas
-            int count = Random.Range(0, 3);
-            var available = new List<IngredientType>(allSalsas);
+            int maxCount = currentWave >= 5 ? 2 : 1;
+            int count    = Random.Range(0, maxCount + 1);
 
-            for (int i = 0; i < count && available.Count > 0; i++)
-            {
-                int idx = Random.Range(0, available.Count);
-                result.Add(available[idx]);
-                available.RemoveAt(idx);
-            }
+            var all      = new List<IngredientType> { IngredientType.SalsaVerde, IngredientType.SalsaRoja };
+            var result   = new List<IngredientType>();
+
+            Shuffle(all);
+            for (int i = 0; i < Mathf.Min(count, all.Count); i++)
+                result.Add(all[i]);
+
             return result;
         }
 
-        // ──────────────────────────────────────────────
-        //  PATIENCE
-        // ──────────────────────────────────────────────
+        private void Shuffle<T>(List<T> list)
+        {
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                (list[i], list[j]) = (list[j], list[i]);
+            }
+        }
 
-        private Dictionary<int, float> orderPatience = new Dictionary<int, float>();
+        // ── Patience ──────────────────────────────────────────────────────────
 
         private void UpdatePatience()
         {
-            var expiredOrders = new List<TacoOrder>();
+            var expired = new List<TacoOrder>();
 
             foreach (var order in activeOrders)
             {
                 if (!orderPatience.ContainsKey(order.orderId))
-                {
-                    orderPatience[order.orderId] = GameConstants.BASE_PATIENCE;
-                }
+                    orderPatience[order.orderId] = GetCurrentPatience();
 
                 orderPatience[order.orderId] -= Time.deltaTime;
 
                 if (orderPatience[order.orderId] <= 0f)
-                {
-                    expiredOrders.Add(order);
-                }
+                    expired.Add(order);
             }
 
-            foreach (var order in expiredOrders)
+            foreach (var order in expired)
             {
                 GameManager.Instance.FailOrder(order);
                 activeOrders.Remove(order);
                 orderPatience.Remove(order.orderId);
                 OnOrderRemoved?.Invoke(order);
-                Debug.Log($"[Orders] Customer left! Order #{order.orderId} expired.");
+                Debug.Log($"[Orders] Order #{order.orderId} expired!");
             }
         }
 
         public float GetPatienceNormalized(int orderId)
         {
-            if (orderPatience.ContainsKey(orderId))
-                return Mathf.Clamp01(orderPatience[orderId] / GameConstants.BASE_PATIENCE);
-            return 1f;
+            if (!orderPatience.ContainsKey(orderId)) return 1f;
+            return Mathf.Clamp01(orderPatience[orderId] / GetCurrentPatience());
         }
 
-        // ──────────────────────────────────────────────
-        //  TACO SUBMISSION & SCORING
-        // ──────────────────────────────────────────────
+        // ── Scoring ───────────────────────────────────────────────────────────
 
         public void TrySubmitTaco(List<IngredientType> assembled)
         {
             if (activeOrders.Count == 0)
             {
-                Debug.Log("[Orders] No active orders to submit to!");
+                Debug.Log("[Orders] No active orders!");
                 return;
             }
 
-            // Find the best matching order
-            TacoOrder bestMatch = null;
-            float bestAccuracy = 0f;
+            TacoOrder best       = null;
+            float     bestScore  = 0f;
 
             foreach (var order in activeOrders)
             {
-                float accuracy = CalculateAccuracy(order, assembled);
-                if (accuracy > bestAccuracy)
-                {
-                    bestAccuracy = accuracy;
-                    bestMatch = order;
-                }
+                float acc = CalculateAccuracy(order, assembled);
+                if (acc > bestScore) { bestScore = acc; best = order; }
             }
 
-            if (bestMatch != null && bestAccuracy >= 0.3f)
+            if (best != null && bestScore >= 0.3f)
             {
-                // Accept the taco
-                activeOrders.Remove(bestMatch);
-                orderPatience.Remove(bestMatch.orderId);
-                GameManager.Instance.CompleteOrder(bestMatch, bestAccuracy);
-                OnOrderRemoved?.Invoke(bestMatch);
-
-                Debug.Log($"[Orders] Submitted taco matched order #{bestMatch.orderId} " +
-                          $"with {bestAccuracy:P0} accuracy");
+                activeOrders.Remove(best);
+                orderPatience.Remove(best.orderId);
+                GameManager.Instance.CompleteOrder(best, bestScore);
+                OnOrderRemoved?.Invoke(best);
+                Debug.Log($"[Orders] Taco matched #{best.orderId} — {bestScore:P0}");
             }
             else
             {
-                Debug.Log("[Orders] Submitted taco doesn't match any order well enough!");
+                Debug.Log("[Orders] No matching order!");
             }
         }
 
         private float CalculateAccuracy(TacoOrder order, List<IngredientType> assembled)
         {
-            var required = order.GetAllRequired();
-            int totalRequired = required.Count;
-            int matched = 0;
-
+            var required     = order.GetAllRequired();
+            int totalReq     = required.Count;
+            int matched      = 0;
             var assembledCopy = new List<IngredientType>(assembled);
 
             foreach (var req in required)
@@ -260,39 +306,8 @@ namespace TacoTornado
                 }
             }
 
-            // Penalty for extra unwanted ingredients
-            int extras = assembledCopy.Count;
-            float extraPenalty = extras * 0.1f;
-
-            float accuracy = (totalRequired > 0)
-                ? (float)matched / totalRequired - extraPenalty
-                : 0f;
-
-            return Mathf.Clamp01(accuracy);
-        }
-
-        // ──────────────────────────────────────────────
-        //  SHIFT LIFECYCLE
-        // ──────────────────────────────────────────────
-
-        private void OnShiftStart()
-        {
-            activeOrders.Clear();
-            orderPatience.Clear();
-            nextOrderId = 1;
-            spawnTimer = 3f; // slight delay before first order
-            currentSpawnInterval = GameConstants.ORDER_SPAWN_INTERVAL_BASE;
-        }
-
-        private void OnShiftEnd()
-        {
-            // Fail all remaining orders
-            foreach (var order in activeOrders)
-            {
-                GameManager.Instance.FailOrder(order);
-            }
-            activeOrders.Clear();
-            orderPatience.Clear();
+            float extraPenalty = assembledCopy.Count * 0.1f;
+            return Mathf.Clamp01(totalReq > 0 ? (float)matched / totalReq - extraPenalty : 0f);
         }
     }
 }

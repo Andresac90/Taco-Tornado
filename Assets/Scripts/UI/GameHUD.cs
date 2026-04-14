@@ -1,5 +1,6 @@
-// GameHUD.cs — In-game heads-up display
-// Attach to a Canvas (Screen Space - Overlay)
+// GameHUD.cs — HUD for infinite mode
+// Shows: score (money), wave, orders completed, fail count, order tickets, interact prompt.
+// NO shift timer — replaced by wave counter.
 
 using System.Collections.Generic;
 using UnityEngine;
@@ -10,55 +11,60 @@ namespace TacoTornado.UI
 {
     public class GameHUD : MonoBehaviour
     {
-        [Header("Timer & Money")]
-        [SerializeField] private TextMeshProUGUI timerText;
+        // ── Singleton ─────────────────────────────────────────────────────────
+        private static GameHUD _instance;
+        public  static GameHUD Instance => _instance;
+
+        private void Awake()
+        {
+            if (_instance == null) _instance = this;
+            else { Destroy(gameObject); return; }
+        }
+
+        // ── Inspector ─────────────────────────────────────────────────────────
+
+        [Header("Score & Status")]
         [SerializeField] private TextMeshProUGUI moneyText;
+        [SerializeField] private TextMeshProUGUI waveText;
         [SerializeField] private TextMeshProUGUI ordersCompletedText;
+        [SerializeField] private TextMeshProUGUI failCountText;       // "X / 5 failed"
 
         [Header("Interaction")]
         [SerializeField] private TextMeshProUGUI interactPromptText;
-        [SerializeField] private Image crosshair;
+        [SerializeField] private Image           crosshair;
+
+        [Header("Plate Status")]
+        [Tooltip("Small text showing what's on the plate right now.")]
+        [SerializeField] private TextMeshProUGUI plateStatusText;
 
         [Header("Order Tickets")]
-        [SerializeField] private Transform orderTicketContainer; // Horizontal layout group
+        [SerializeField] private Transform  orderTicketContainer;
         [SerializeField] private GameObject orderTicketPrefab;
 
-        [Header("Shift End Panel")]
-        [SerializeField] private GameObject shiftEndPanel;
-        [SerializeField] private TextMeshProUGUI shiftSummaryText;
+        [Header("Game Over Panel")]
+        [SerializeField] private GameObject      gameOverPanel;
+        [SerializeField] private TextMeshProUGUI gameOverTitleText;
+        [SerializeField] private TextMeshProUGUI gameOverSummaryText;
+
+        [Header("Wave Announce")]
+        [Tooltip("Brief full-screen text that flashes when a new wave starts.")]
+        [SerializeField] private TextMeshProUGUI waveAnnounceText;
+
+        // ── Runtime ───────────────────────────────────────────────────────────
 
         private Dictionary<int, GameObject> ticketObjects = new Dictionary<int, GameObject>();
 
-        #region Singleton
-        private static GameHUD _instance;
-        public static GameHUD Instance => _instance;
-
-        void Awake()
-        {
-            if (_instance == null)
-            {
-                _instance = this;
-            }
-            else
-            {
-                Destroy(gameObject);
-            }
-        }
-        #endregion
+        // ── Unity ─────────────────────────────────────────────────────────────
 
         private void Start()
         {
-            if (shiftEndPanel != null)
-                shiftEndPanel.SetActive(false);
-
-            // Hide interact prompt at start
-            if (interactPromptText != null)
-                interactPromptText.gameObject.SetActive(false);
+            if (gameOverPanel    != null) gameOverPanel.SetActive(false);
+            if (interactPromptText != null) interactPromptText.gameObject.SetActive(false);
+            if (waveAnnounceText != null) waveAnnounceText.gameObject.SetActive(false);
         }
 
         private void OnEnable()
         {
-            // Use Invoke to delay subscription by one frame so managers can initialize first
             Invoke(nameof(SubscribeToEvents), 0f);
         }
 
@@ -66,15 +72,17 @@ namespace TacoTornado.UI
         {
             if (GameManager.Instance != null)
             {
-                GameManager.Instance.OnShiftStarted += OnShiftStarted;
-                GameManager.Instance.OnShiftEnded += OnShiftEnded;
-                GameManager.Instance.OnMoneyChanged += UpdateMoney;
-                GameManager.Instance.OnGameOver += OnGameOver;
+                GameManager.Instance.OnShiftStarted  += OnShiftStarted;
+                GameManager.Instance.OnShiftEnded    += OnShiftEnded;
+                GameManager.Instance.OnMoneyChanged  += UpdateMoney;
+                GameManager.Instance.OnGameOver      += OnGameOver;
             }
+
             if (OrderManager.Instance != null)
             {
-                OrderManager.Instance.OnNewOrder += AddOrderTicket;
-                OrderManager.Instance.OnOrderRemoved += RemoveOrderTicket;
+                OrderManager.Instance.OnNewOrder      += AddOrderTicket;
+                OrderManager.Instance.OnOrderRemoved  += RemoveOrderTicket;
+                OrderManager.Instance.OnWaveChanged   += OnWaveChanged;
             }
         }
 
@@ -82,67 +90,62 @@ namespace TacoTornado.UI
         {
             if (GameManager.Instance != null)
             {
-                GameManager.Instance.OnShiftStarted -= OnShiftStarted;
-                GameManager.Instance.OnShiftEnded -= OnShiftEnded;
-                GameManager.Instance.OnMoneyChanged -= UpdateMoney;
-                GameManager.Instance.OnGameOver -= OnGameOver;
+                GameManager.Instance.OnShiftStarted  -= OnShiftStarted;
+                GameManager.Instance.OnShiftEnded    -= OnShiftEnded;
+                GameManager.Instance.OnMoneyChanged  -= UpdateMoney;
+                GameManager.Instance.OnGameOver      -= OnGameOver;
             }
+
             if (OrderManager.Instance != null)
             {
-                OrderManager.Instance.OnNewOrder -= AddOrderTicket;
+                OrderManager.Instance.OnNewOrder     -= AddOrderTicket;
                 OrderManager.Instance.OnOrderRemoved -= RemoveOrderTicket;
+                OrderManager.Instance.OnWaveChanged  -= OnWaveChanged;
             }
         }
 
         private void Update()
         {
-            // === NULL-SAFE CHECK — prevents NullReferenceException when GameManager doesn't exist yet ===
             if (GameManager.Instance == null || !GameManager.Instance.isShiftActive) return;
 
-            UpdateTimer();
-            UpdateOrdersCompleted();
+            UpdateStats();
             UpdateTicketPatience();
+            UpdatePlateStatus();
         }
 
-        // ──────────────────────────────────────────────
-        //  TIMER & MONEY
-        // ──────────────────────────────────────────────
+        // ── Stats ─────────────────────────────────────────────────────────────
 
-        private void UpdateTimer()
+        private void UpdateStats()
         {
-            if (timerText == null) return;
-            float t = GameManager.Instance.shiftTimer;
-            int minutes = Mathf.FloorToInt(t / 60f);
-            int seconds = Mathf.FloorToInt(t % 60f);
-            timerText.text = $"{minutes:00}:{seconds:00}";
+            var gm = GameManager.Instance;
 
-            // Flash red in last 30 seconds
-            timerText.color = t < 30f ? Color.red : Color.white;
+            if (moneyText          != null) moneyText.text          = $"${gm.money:F0}";
+            if (ordersCompletedText != null) ordersCompletedText.text = $"✓ {gm.ordersCompleted}";
+
+            if (failCountText != null)
+            {
+                failCountText.text  = $"✗ {gm.ordersFailed} / {gm.maxFailedOrders}";
+                failCountText.color = gm.ordersFailed >= gm.maxFailedOrders - 1
+                    ? Color.red
+                    : Color.white;
+            }
+
+            if (waveText != null && OrderManager.Instance != null)
+                waveText.text = $"Wave {OrderManager.Instance.currentWave}";
         }
 
         private void UpdateMoney(float amount)
         {
-            if (moneyText != null)
-                moneyText.text = $"${amount:F2}";
+            if (moneyText != null) moneyText.text = $"${amount:F0}";
         }
 
-        private void UpdateOrdersCompleted()
-        {
-            if (ordersCompletedText != null)
-                ordersCompletedText.text = $" {GameManager.Instance.ordersCompleted}";
-        }
-
-        // ──────────────────────────────────────────────
-        //  INTERACTION PROMPT
-        // ──────────────────────────────────────────────
+        // ── Interact Prompt ───────────────────────────────────────────────────
 
         public void ShowInteractPrompt(string text)
         {
-            if (interactPromptText != null)
-            {
-                interactPromptText.gameObject.SetActive(true);
-                interactPromptText.text = text;
-            }
+            if (interactPromptText == null) return;
+            interactPromptText.gameObject.SetActive(true);
+            interactPromptText.text = text;
         }
 
         public void HideInteractPrompt()
@@ -151,9 +154,24 @@ namespace TacoTornado.UI
                 interactPromptText.gameObject.SetActive(false);
         }
 
-        // ──────────────────────────────────────────────
-        //  ORDER TICKETS
-        // ──────────────────────────────────────────────
+        // ── Plate Status ──────────────────────────────────────────────────────
+
+        private void UpdatePlateStatus()
+        {
+            if (plateStatusText == null) return;
+
+            // Find PlayerHands on camera
+            var hands = FindFirstObjectByType<Player.PlayerHands>();
+            if (hands == null || !hands.HasPlate())
+            {
+                plateStatusText.text = "";
+                return;
+            }
+
+            plateStatusText.text = hands.GetPlate().GetStatusText();
+        }
+
+        // ── Order Tickets ─────────────────────────────────────────────────────
 
         private void AddOrderTicket(TacoOrder order)
         {
@@ -162,35 +180,25 @@ namespace TacoTornado.UI
             GameObject ticket = Instantiate(orderTicketPrefab, orderTicketContainer);
             ticketObjects[order.orderId] = ticket;
 
-            // Find the Taco Name component specifically
-            var nameComponent = ticket.transform.Find("txt_tacoName")?.GetComponent<TextMeshProUGUI>();
-            if (nameComponent != null)
+            var nameComp = ticket.transform.Find("txt_tacoName")?.GetComponent<TextMeshProUGUI>();
+            if (nameComp != null)
+                nameComp.text = $"#{order.orderId} {ShortName(order.proteinType)}";
+
+            var ingComp = ticket.transform.Find("txt_ingredients")?.GetComponent<TextMeshProUGUI>();
+            if (ingComp != null)
             {
-                nameComponent.text = $"#{order.orderId} {ShortName(order.proteinType)}";
-            }
-
-            // Find the Ingredients component specifically
-            var ingredientsComponent = ticket.transform.Find("txt_ingredients")?.GetComponent<TextMeshProUGUI>();
-            if (ingredientsComponent != null)
-            {
-                string ingredientsList = "";
-                ingredientsList += ShortName(order.tortillaType) + "\n";
-
-                foreach (var t in order.toppings)
-                    ingredientsList += ShortName(t) + "\n";
-
-                foreach (var s in order.salsas)
-                    ingredientsList += ShortName(s) + "\n";
-
-                ingredientsComponent.text = ingredientsList;
+                string s = ShortName(order.tortillaType) + "\n";
+                foreach (var t in order.toppings) s += ShortName(t) + "\n";
+                foreach (var sl in order.salsas)  s += ShortName(sl) + "\n";
+                ingComp.text = s;
             }
         }
 
         private void RemoveOrderTicket(TacoOrder order)
         {
-            if (ticketObjects.ContainsKey(order.orderId))
+            if (ticketObjects.TryGetValue(order.orderId, out var t))
             {
-                Destroy(ticketObjects[order.orderId]);
+                Destroy(t);
                 ticketObjects.Remove(order.orderId);
             }
         }
@@ -201,103 +209,107 @@ namespace TacoTornado.UI
 
             foreach (var order in OrderManager.Instance.activeOrders)
             {
-                if (ticketObjects.ContainsKey(order.orderId))
-                {
-                    var bar = ticketObjects[order.orderId].transform.Find("PatienceBar");
-                    if (bar != null)
-                    {
-                        var image = bar.GetComponent<Image>();
-                        if (image != null)
-                        {
-                            float patience = OrderManager.Instance.GetPatienceNormalized(order.orderId);
-                            image.fillAmount = patience;
-                            image.color = Color.Lerp(Color.red, Color.green, patience);
-                        }
-                    }
-                }
+                if (!ticketObjects.TryGetValue(order.orderId, out var ticket)) continue;
+
+                var bar = ticket.transform.Find("PatienceBar");
+                if (bar == null) continue;
+
+                var img = bar.GetComponent<Image>();
+                if (img == null) continue;
+
+                float p  = OrderManager.Instance.GetPatienceNormalized(order.orderId);
+                img.fillAmount = p;
+                img.color      = Color.Lerp(Color.red, Color.green, p);
             }
         }
 
-        // ──────────────────────────────────────────────
-        //  SHIFT END
-        // ──────────────────────────────────────────────
+        // ── Wave Announce ─────────────────────────────────────────────────────
+
+        private void OnWaveChanged(int wave)
+        {
+            if (waveAnnounceText == null) return;
+            StopCoroutine(nameof(FlashWaveText));
+            StartCoroutine(FlashWaveText(wave));
+        }
+
+        private System.Collections.IEnumerator FlashWaveText(int wave)
+        {
+            waveAnnounceText.gameObject.SetActive(true);
+            waveAnnounceText.text  = $"WAVE {wave}";
+            waveAnnounceText.alpha = 1f;
+
+            yield return new WaitForSeconds(1.2f);
+
+            float elapsed = 0f;
+            while (elapsed < 0.5f)
+            {
+                waveAnnounceText.alpha = Mathf.Lerp(1f, 0f, elapsed / 0.5f);
+                elapsed += Time.deltaTime;
+                yield return null;
+            }
+
+            waveAnnounceText.gameObject.SetActive(false);
+        }
+
+        // ── Shift Events ──────────────────────────────────────────────────────
 
         private void OnShiftStarted()
         {
-            if (shiftEndPanel != null)
-                shiftEndPanel.SetActive(false);
+            if (gameOverPanel != null) gameOverPanel.SetActive(false);
 
-            // Clear old tickets
-            foreach (var kvp in ticketObjects)
-                Destroy(kvp.Value);
+            foreach (var kvp in ticketObjects) Destroy(kvp.Value);
             ticketObjects.Clear();
         }
 
         private void OnShiftEnded()
         {
-            if (shiftEndPanel == null) return;
-
-            shiftEndPanel.SetActive(true);
-
-            var gm = GameManager.Instance;
-            if (shiftSummaryText != null)
-            {
-                shiftSummaryText.text =
-                    $"SHIFT COMPLETE — Day {gm.currentDay}\n\n" +
-                    $"Orders Served:  {gm.ordersCompleted}\n" +
-                    $"Orders Failed:  {gm.ordersFailed}\n" +
-                    $"Perfect Orders: {gm.perfectOrders}\n\n" +
-                    $"Revenue:  ${gm.shiftRevenue:F2}\n" +
-                    $"Tips:     ${gm.shiftTips:F2}\n" +
-                    $"Total:    ${gm.GetShiftProfit():F2}\n\n" +
-                    $"Balance:  ${gm.money:F2}";
-            }
+            // Game over panel is shown via OnGameOver if it was a lose
+            // If somehow EndShift is called without OnGameOver (shouldn't happen in infinite mode)
+            // just silently end
         }
 
         private void OnGameOver(string reason)
         {
-            if (shiftEndPanel == null) return;
+            if (gameOverPanel == null) return;
+            gameOverPanel.SetActive(true);
 
-            shiftEndPanel.SetActive(true);
+            var gm = GameManager.Instance;
 
-            if (shiftSummaryText != null)
+            if (gameOverTitleText != null)
+                gameOverTitleText.text = "GAME OVER";
+
+            if (gameOverSummaryText != null)
             {
-                shiftSummaryText.text = $"<color=red>GAME OVER</color>\n\n" +
-                                       $"REASON: {reason}\n\n" +
-                                       $"Final Balance: ${GameManager.Instance.money:F2}";
+                int wave = OrderManager.Instance != null ? OrderManager.Instance.currentWave : 0;
+                gameOverSummaryText.text =
+                    $"{reason}\n\n" +
+                    $"Wave Reached:      {wave}\n" +
+                    $"Orders Served:     {gm.ordersCompleted}\n" +
+                    $"Perfect Orders:    {gm.perfectOrders}\n\n" +
+                    $"Revenue:  ${gm.shiftRevenue:F2}\n" +
+                    $"Tips:     ${gm.shiftTips:F2}\n" +
+                    $"Total:    ${gm.GetShiftProfit():F2}";
             }
 
-            var shiftEndUI = shiftEndPanel.GetComponent<UIshiftEnd>();
-            if (shiftEndUI != null && shiftEndUI.gameOver != null)
-            {
-                shiftEndUI.gameOver.text = "GAME OVER";
-            }
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible   = true;
         }
 
-        // ──────────────────────────────────────────────
-        //  HELPERS
-        // ──────────────────────────────────────────────
+        // ── Helpers ───────────────────────────────────────────────────────────
 
         private string ShortName(IngredientType type)
         {
             switch (type)
             {
-                case IngredientType.CornTortilla: return "Corn";
+                case IngredientType.CornTortilla:  return "Corn";
                 case IngredientType.FlourTortilla: return "Flour";
-                case IngredientType.CarneAsada: return "Asada";
-                case IngredientType.Pollo: return "Pollo";
-                case IngredientType.Carnitas: return "Carnitas";
-                case IngredientType.AlPastor: return "Pastor";
-                case IngredientType.Cilantro: return "Cilantro";
-                case IngredientType.Onion: return "Onion";
-                case IngredientType.Lime: return "Lime";
-                case IngredientType.Cheese: return "Cheese";
-                case IngredientType.Lettuce: return "Lettuce";
-                case IngredientType.SalsaVerde: return "S. Verde";
-                case IngredientType.SalsaRoja: return "S. Roja";
-                case IngredientType.Guacamole: return "Guac";
-                case IngredientType.SourCream: return "Cream";
-                default: return type.ToString();
+                case IngredientType.AlPastor:      return "Al Pastor";
+                case IngredientType.Discada:       return "Discada";
+                case IngredientType.Cilantro:      return "Cilantro";
+                case IngredientType.Onion:         return "Onion";
+                case IngredientType.SalsaVerde:    return "S. Verde";
+                case IngredientType.SalsaRoja:     return "S. Roja";
+                default:                           return type.ToString();
             }
         }
     }

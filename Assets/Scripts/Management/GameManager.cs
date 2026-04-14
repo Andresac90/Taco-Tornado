@@ -1,4 +1,7 @@
-// GameManager.cs — Central game state, shift management, and scoring
+// GameManager.cs — Central game state for infinite mode
+// No shift timer — game runs until the lose condition is hit (5 failed orders).
+// Score = total money earned.
+
 using System;
 using System.Collections.Generic;
 using UnityEngine;
@@ -9,163 +12,120 @@ namespace TacoTornado
     {
         public static GameManager Instance { get; private set; }
 
-        // ── Events ──
-        public event Action OnShiftStarted;
-        public event Action OnShiftEnded;
-        public event Action<float> OnMoneyChanged;
+        // ── Events ────────────────────────────────────────────────────────────
+        public event Action         OnShiftStarted;
+        public event Action         OnShiftEnded;
+        public event Action<float>  OnMoneyChanged;
         public event Action<TacoOrder> OnOrderCompleted;
         public event Action<TacoOrder> OnOrderFailed;
+        public event Action<string> OnGameOver;
 
-        // New Game Over Event 
-        public event Action<string> OnGameOver; // Added by Akshay
-
-        // ── State ──
+        // ── State ─────────────────────────────────────────────────────────────
         [Header("Runtime State")]
         public float money;
-        public int currentDay = 1;
-        public ShiftTime currentShift = ShiftTime.Lunch;
-        public bool isShiftActive;
+        public bool  isShiftActive;
 
         [Header("Shift Stats")]
-        public float shiftTimer;
-        public int ordersCompleted;
-        public int ordersFailed;
-        public int perfectOrders;
+        public int   ordersCompleted;
+        public int   ordersFailed;
+        public int   perfectOrders;
         public float shiftRevenue;
         public float shiftTips;
 
-        // Lose Condition Settings
-        [Header("Lose Conditions")]
-        public int maxFailedOrders = 5;
+        [Header("Lose Condition")]
+        public int maxFailedOrders = GameConstants.MAX_FAILED_ORDERS;
 
-        // ── Inventory ──
+        // ── Inventory ─────────────────────────────────────────────────────────
+        // Infinite mode: stock is unlimited (or very large).
         public Dictionary<IngredientType, int> ingredientStock = new Dictionary<IngredientType, int>();
+
+        // ── Unity ─────────────────────────────────────────────────────────────
 
         private void Awake()
         {
-            if (Instance != null && Instance != this)
-            {
-                Destroy(gameObject);
-                return;
-            }
+            if (Instance != null && Instance != this) { Destroy(gameObject); return; }
             Instance = this;
             DontDestroyOnLoad(gameObject);
 
             money = GameConstants.STARTING_MONEY;
             InitializeStock();
-            Debug.Log("[LOGIC CHECK] Inventory Initialized with 20/40 units of all ingredients.");//Added by Akshay
         }
 
         private void Update()
         {
             if (!isShiftActive) return;
-
-            shiftTimer -= Time.deltaTime;
-
-
-            //Check Lose Conditions every frame
             CheckLoseConditions();
-
-            if (shiftTimer <= 0f)
-            {
-                EndShift();
-            }
         }
 
-        // ──────────────────────────────────────────────
-        //  WIN/LOSE LOGIC [Checked by Akshay]
-        // ──────────────────────────────────────────────
-
-        private void CheckLoseConditions()
-        {
-            // Lose Condition 1: Too many failed orders
-            if (ordersFailed >= maxFailedOrders)
-            {
-                EndShift();
-                OnGameOver?.Invoke("Too many failed orders!");
-                return;
-            }
-
-            // Lose Condition 2: Out of Tortillas
-            // We check if the player has 0 stock of all tortilla types
-            bool hasTortillas = GetStock(IngredientType.CornTortilla) > 0 ||
-                                GetStock(IngredientType.FlourTortilla) > 0;
-
-            if (!hasTortillas)
-            {
-                EndShift();
-                OnGameOver?.Invoke("Out of tortillas!");// Added by Akshay
-            }
-        }
-
-        // ──────────────────────────────────────────────
-        //  SHIFT MANAGEMENT
-        // ──────────────────────────────────────────────
+        // ── Shift ─────────────────────────────────────────────────────────────
 
         public void StartShift()
         {
-            isShiftActive = true;
-            shiftTimer = GameConstants.SHIFT_DURATION;
-            ordersCompleted = 0;
-            ordersFailed = 0;
-            perfectOrders = 0;
-            shiftRevenue = 0f;
-            shiftTips = 0f;
+            isShiftActive    = true;
+            ordersCompleted  = 0;
+            ordersFailed     = 0;
+            perfectOrders    = 0;
+            shiftRevenue     = 0f;
+            shiftTips        = 0f;
+            money            = GameConstants.STARTING_MONEY;
+
+            InitializeStock();
 
             Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            Cursor.visible   = false;
 
             OnShiftStarted?.Invoke();
-            Debug.Log($"[GameManager] Shift started — Day {currentDay}, {currentShift}");
+            Debug.Log("[GameManager] Infinite shift started!");
         }
 
         public void EndShift()
         {
+            if (!isShiftActive) return;
             isShiftActive = false;
 
             Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
-
-            // Apply spoilage to perishable stock
-            ApplySpoilage();
+            Cursor.visible   = true;
 
             OnShiftEnded?.Invoke();
-            Debug.Log($"[GameManager] Shift ended — Revenue: ${shiftRevenue:F2}, Tips: ${shiftTips:F2}");
+            Debug.Log($"[GameManager] Game over — Revenue: ${shiftRevenue:F2}  Tips: ${shiftTips:F2}  " +
+                      $"Completed: {ordersCompleted}  Failed: {ordersFailed}");
         }
 
-        // ──────────────────────────────────────────────
-        //  ORDER SCORING
-        // ──────────────────────────────────────────────
+        // ── Lose Condition ────────────────────────────────────────────────────
+
+        private void CheckLoseConditions()
+        {
+            if (ordersFailed >= maxFailedOrders)
+            {
+                EndShift();
+                OnGameOver?.Invoke($"Too many failed orders! ({ordersFailed} missed)");
+            }
+        }
+
+        // ── Scoring ───────────────────────────────────────────────────────────
 
         public void CompleteOrder(TacoOrder order, float accuracy)
         {
             float tipMult;
-            if (accuracy >= 1f)
-            {
-                tipMult = GameConstants.PERFECT_TIP_MULT;
-                perfectOrders++;
-            }
-            else if (accuracy >= 0.75f)
-                tipMult = GameConstants.GOOD_TIP_MULT;
-            else if (accuracy >= 0.5f)
-                tipMult = GameConstants.OK_TIP_MULT;
-            else
-                tipMult = GameConstants.BAD_TIP_MULT;
+            if      (accuracy >= 1f)    { tipMult = GameConstants.PERFECT_TIP_MULT; perfectOrders++; }
+            else if (accuracy >= 0.75f)   tipMult = GameConstants.GOOD_TIP_MULT;
+            else if (accuracy >= 0.5f)    tipMult = GameConstants.OK_TIP_MULT;
+            else                          tipMult = GameConstants.BAD_TIP_MULT;
 
             float revenue = order.basePrice;
-            float tip = GameConstants.BASE_TIP * tipMult * order.tipMultiplier;
-            float total = revenue + tip;
+            float tip     = GameConstants.BASE_TIP * tipMult * order.tipMultiplier;
+            float total   = revenue + tip;
 
-            money += total;
+            money        += total;
             shiftRevenue += revenue;
-            shiftTips += tip;
+            shiftTips    += tip;
             ordersCompleted++;
-            order.state = OrderState.Completed;
+            order.state   = OrderState.Completed;
 
             OnMoneyChanged?.Invoke(money);
             OnOrderCompleted?.Invoke(order);
 
-            Debug.Log($"[GameManager] Order #{order.orderId} completed — Accuracy: {accuracy:P0}");
+            Debug.Log($"[GameManager] #{order.orderId} complete — {accuracy:P0}  +${total:F2}");
         }
 
         public void FailOrder(TacoOrder order)
@@ -173,24 +133,20 @@ namespace TacoTornado
             ordersFailed++;
             order.state = OrderState.Failed;
             OnOrderFailed?.Invoke(order);
-            Debug.Log($"[GameManager] Order #{order.orderId} failed!");
+            Debug.Log($"[GameManager] Order #{order.orderId} failed! ({ordersFailed}/{maxFailedOrders})");
         }
 
-        // ──────────────────────────────────────────────
-        //  INVENTORY
-        // ──────────────────────────────────────────────
+        // ── Inventory ─────────────────────────────────────────────────────────
 
         private void InitializeStock()
         {
             foreach (IngredientType type in Enum.GetValues(typeof(IngredientType)))
-            {
-                ingredientStock[type] = 20; // Default starting stock [cite: 121]
-            }
+                ingredientStock[type] = 999; // effectively unlimited in infinite mode
         }
 
         public bool ConsumeIngredient(IngredientType type)
         {
-            if (ingredientStock.ContainsKey(type) && ingredientStock[type] > 0)
+            if (ingredientStock.TryGetValue(type, out int count) && count > 0)
             {
                 ingredientStock[type]--;
                 return true;
@@ -201,52 +157,13 @@ namespace TacoTornado
 
         public int GetStock(IngredientType type)
         {
-            return ingredientStock.ContainsKey(type) ? ingredientStock[type] : 0;
+            return ingredientStock.TryGetValue(type, out int v) ? v : 0;
         }
 
-        public void PurchaseIngredient(IngredientType type, int quantity, float totalCost)
-        {
-            if (money < totalCost) return;
+        // ── Helpers ───────────────────────────────────────────────────────────
 
-            money -= totalCost;
-            if (!ingredientStock.ContainsKey(type))
-                ingredientStock[type] = 0;
-            ingredientStock[type] += quantity;
-
-            OnMoneyChanged?.Invoke(money);
-        }
-
-        private void ApplySpoilage()
-        {
-            IngredientType[] perishables = {
-                IngredientType.CarneAsada, IngredientType.Pollo,
-                IngredientType.Carnitas, IngredientType.AlPastor,
-                IngredientType.Cilantro, IngredientType.Lettuce,
-                IngredientType.Guacamole
-            };
-
-            foreach (var type in perishables)
-            {
-                if (ingredientStock.ContainsKey(type) && ingredientStock[type] > 0)
-                {
-                    int spoiled = Mathf.CeilToInt(ingredientStock[type] * GameConstants.SPOILAGE_RATE);
-                    ingredientStock[type] = Mathf.Max(0, ingredientStock[type] - spoiled);
-                }
-            }
-        }
-
-        // ──────────────────────────────────────────────
-        //  FINANCE HELPERS
-        // ──────────────────────────────────────────────
-
-        public float GetShiftProfit() { return shiftRevenue + shiftTips; }
-
-        public void SpendMoney(float amount)
-        {
-            money -= amount;
-            OnMoneyChanged?.Invoke(money);
-        }
-
-        public bool CanAfford(float amount) { return money >= amount; }
+        public float GetShiftProfit() => shiftRevenue + shiftTips;
+        public void  SpendMoney(float amount) { money -= amount; OnMoneyChanged?.Invoke(money); }
+        public bool  CanAfford(float amount)  => money >= amount;
     }
 }

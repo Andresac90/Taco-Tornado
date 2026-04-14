@@ -10,31 +10,28 @@ namespace TacoTornado
     //  ENUMS
     // ──────────────────────────────────────────────
 
-    //INGREDIENTS
+    // TRIMMED INGREDIENT SET — 8 total, 4 stations
+    // Station A (Left):   Salsa Verde, Salsa Roja
+    // Station B:          Cilantro, Onion
+    // Station C (Middle): Corn Tortilla, Flour Tortilla  (+ Customer Plate hand-off window)
+    // Station D (Right):  Al Pastor, Discada  +  Grill
     public enum IngredientType
     {
-        // Tortillas
+        // Tortillas (Station C)
         CornTortilla,
         FlourTortilla,
 
-        // Proteins
-        CarneAsada,
-        Pollo,
-        Carnitas,
+        // Proteins (Station D — need grill)
         AlPastor,
+        Discada,
 
-        // Toppings
+        // Toppings (Station B)
         Cilantro,
         Onion,
-        Lime,
-        Cheese,
-        Lettuce,
 
-        // Salsas
+        // Salsas (Station A)
         SalsaVerde,
         SalsaRoja,
-        Guacamole,
-        SourCream
     }
 
     public enum IngredientCategory
@@ -69,14 +66,6 @@ namespace TacoTornado
         FoodCritic
     }
 
-    public enum ShiftTime
-    {
-        Morning,
-        Lunch,
-        Evening,
-        LateNight
-    }
-
     // ──────────────────────────────────────────────
     //  DATA STRUCTURES
     // ──────────────────────────────────────────────
@@ -88,8 +77,8 @@ namespace TacoTornado
         public IngredientCategory category;
         public string displayName;
         public float baseCost;
-        public float cookTime;       // 0 if no cooking needed
-        public float burnTime;       // time after cooked before burning
+        public float cookTime;
+        public float burnTime;
         public bool requiresCooking;
 
         public static IngredientCategory GetCategory(IngredientType type)
@@ -100,28 +89,26 @@ namespace TacoTornado
                 case IngredientType.FlourTortilla:
                     return IngredientCategory.Tortilla;
 
-                case IngredientType.CarneAsada:
-                case IngredientType.Pollo:
-                case IngredientType.Carnitas:
                 case IngredientType.AlPastor:
+                case IngredientType.Discada:
                     return IngredientCategory.Protein;
 
                 case IngredientType.Cilantro:
                 case IngredientType.Onion:
-                case IngredientType.Lime:
-                case IngredientType.Cheese:
-                case IngredientType.Lettuce:
                     return IngredientCategory.Topping;
 
                 case IngredientType.SalsaVerde:
                 case IngredientType.SalsaRoja:
-                case IngredientType.Guacamole:
-                case IngredientType.SourCream:
                     return IngredientCategory.Salsa;
 
                 default:
                     return IngredientCategory.Topping;
             }
+        }
+
+        public static bool RequiresCooking(IngredientType type)
+        {
+            return GetCategory(type) == IngredientCategory.Protein;
         }
     }
 
@@ -132,10 +119,11 @@ namespace TacoTornado
         public IngredientType tortillaType;
         public IngredientType proteinType;
         public List<IngredientType> toppings = new List<IngredientType>();
-        public List<IngredientType> salsas = new List<IngredientType>();
+        public List<IngredientType> salsas   = new List<IngredientType>();
         public OrderState state = OrderState.Waiting;
         public float tipMultiplier = 1f;
-        public float basePrice = 5f;
+        public float basePrice     = 5f;
+        public float patienceDuration; // set per-order based on difficulty
 
         public List<IngredientType> GetAllRequired()
         {
@@ -152,39 +140,53 @@ namespace TacoTornado
 
     public static class GameConstants
     {
-        // Player
-        public const float PLAYER_LOOK_SPEED = 2f;
-        public const float PLAYER_LOOK_CLAMP_UP = 60f;
-        public const float PLAYER_LOOK_CLAMP_DOWN = 80f;
-        public const float INTERACT_RANGE = 2.5f;
+        // Player movement
+        public const float PLAYER_MOVE_SPEED     = 3.5f;
+        public const float PLAYER_LOOK_SPEED     = 2f;
+        public const float PLAYER_LOOK_CLAMP_UP  = 55f;
+        public const float PLAYER_LOOK_CLAMP_DOWN = 75f;
+        public const float INTERACT_RANGE        = 2.5f;
+
+        // Truck bounds (how far the player can walk, in local X)
+        // Adjust these to match your actual truck interior width
+        public const float TRUCK_MIN_X = -2.0f;
+        public const float TRUCK_MAX_X =  2.0f;
+        public const float TRUCK_MIN_Z = -1.0f;
+        public const float TRUCK_MAX_Z =  0.5f;
 
         // Cooking
-        public const float DEFAULT_COOK_TIME = 4f;
-        public const float DEFAULT_BURN_TIME = 3f;
-        public const float GRILL_CHECK_INTERVAL = 0.1f;
+        public const float DEFAULT_COOK_TIME       = 5f;
+        public const float DEFAULT_BURN_TIME       = 4f;
+        public const float GRILL_CHECK_INTERVAL    = 0.1f;
 
-        // Customers
-        public const float BASE_PATIENCE = 30f;
-        public const float NIGHT_OWL_PATIENCE_MULT = 0.5f;
-        public const float INFLUENCER_PATIENCE_MULT = 0.75f;
-        public const float REGULAR_PATIENCE_MULT = 1.5f;
-        public const float FOOD_CRITIC_PATIENCE_MULT = 0.6f;
+        // Difficulty — infinite mode
+        // Patience shrinks and spawn rate increases as score grows
+        public const float BASE_PATIENCE           = 40f;   // seconds at wave 0
+        public const float MIN_PATIENCE            = 18f;   // floor
+        public const float PATIENCE_DECAY_PER_WAVE = 2.5f;  // seconds less per wave
+
+        public const float BASE_SPAWN_INTERVAL     = 14f;   // seconds between customers at wave 0
+        public const float MIN_SPAWN_INTERVAL      = 5f;    // floor
+        public const float SPAWN_DECAY_PER_WAVE    = 1.0f;  // seconds faster per wave
+
+        public const int   ORDERS_PER_WAVE         = 5;     // orders to complete before next wave
+        public const int   MAX_QUEUE_SIZE           = 4;     // max simultaneous tickets
 
         // Tips
-        public const float BASE_TIP = 2f;
-        public const float PERFECT_TIP_MULT = 2.5f;
-        public const float GOOD_TIP_MULT = 1.5f;
-        public const float OK_TIP_MULT = 1f;
-        public const float BAD_TIP_MULT = 0.25f;
+        public const float BASE_TIP          = 2f;
+        public const float PERFECT_TIP_MULT  = 2.5f;
+        public const float GOOD_TIP_MULT     = 1.5f;
+        public const float OK_TIP_MULT       = 1f;
+        public const float BAD_TIP_MULT      = 0.25f;
 
         // Economy
-        public const float STARTING_MONEY = 100f;
-        public const float SPOILAGE_RATE = 0.15f; // 15% of unused perishables lost
+        public const float STARTING_MONEY    = 0f;   // infinite mode — score is money
+        public const float SPOILAGE_RATE     = 0f;   // no spoilage in infinite mode
 
-        // Shift
-        public const float SHIFT_DURATION = 120f; // seconds
-        public const float ORDER_SPAWN_INTERVAL_BASE = 12f;
-        public const float ORDER_SPAWN_INTERVAL_MIN = 5f;
-        public const int MAX_QUEUE_SIZE = 6;
+        // Lose condition
+        public const int   MAX_FAILED_ORDERS = 5;
+
+        // Combine animation
+        public const float COMBINE_ANIM_DURATION = 0.35f;
     }
 }

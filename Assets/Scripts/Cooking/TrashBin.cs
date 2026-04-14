@@ -1,5 +1,5 @@
-// TrashBin.cs — Discard held ingredients or dump a bad taco
-// Attach to a trash can object near the prep area
+// TrashBin.cs — Trashes whatever is in the right hand
+// Place on the LEFT side of the counter per the layout drawing.
 
 using UnityEngine;
 using TacoTornado.Player;
@@ -8,22 +8,33 @@ namespace TacoTornado.Cooking
 {
     public class TrashBin : MonoBehaviour, IInteractable
     {
-        public void OnInteract(PlayerInteraction player)
+        public void OnRightHandInteract(PlayerHands hands)
         {
-            // Nothing to do with empty hands on trash
+            // Nothing in right hand, nothing to trash
         }
 
-        public void OnInteractWithHeld(PlayerInteraction player, Ingredient ingredient)
+        public void OnRightHandInteractWithHeld(PlayerHands hands, Ingredient ingredient)
         {
-            Debug.Log($"[Trash] Discarded {ingredient.ingredientType}");
-
-            player.ClearHeldIngredient();
+            // RMB on trash while holding → destroy the held ingredient
+            hands.ClearRightHand();
             Destroy(ingredient.gameObject);
+
+            Debug.Log($"[Trash] Trashed {ingredient.ingredientType}");
+
+            if (Player.CameraEffects.Instance != null)
+                Player.CameraEffects.Instance.Shake(0.05f, 0.1f);
         }
 
-        public string GetInteractPrompt()
+        public void OnLeftHandInteract(PlayerHands hands)
         {
-            return "Trash (discard ingredient)";
+            // Could clear the plate here if desired — left as future feature
+        }
+
+        public string GetInteractPrompt(PlayerHands hands)
+        {
+            if (hands.IsRightHandHolding())
+                return $"[RMB] Trash {hands.GetRightHandIngredient().ingredientType}";
+            return "Trash Bin";
         }
     }
 }
