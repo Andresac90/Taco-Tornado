@@ -1,5 +1,6 @@
-// TrashBin.cs — Trashes whatever is in the right hand
-// Place on the LEFT side of the counter per the layout drawing.
+// TrashBin.cs
+// RMB while holding ingredient → trash it
+// LMB (plate hand) aimed at trash → clear entire plate (so player can start over)
 
 using UnityEngine;
 using TacoTornado.Player;
@@ -10,30 +11,45 @@ namespace TacoTornado.Cooking
     {
         public void OnRightHandInteract(PlayerHands hands)
         {
-            // Nothing in right hand, nothing to trash
+            // Right hand empty, nothing to trash
         }
 
         public void OnRightHandInteractWithHeld(PlayerHands hands, Ingredient ingredient)
         {
-            // RMB on trash while holding → destroy the held ingredient
             hands.ClearRightHand();
             Destroy(ingredient.gameObject);
-
             Debug.Log($"[Trash] Trashed {ingredient.ingredientType}");
-
             if (Player.CameraEffects.Instance != null)
                 Player.CameraEffects.Instance.Shake(0.05f, 0.1f);
         }
 
         public void OnLeftHandInteract(PlayerHands hands)
         {
-            // Could clear the plate here if desired — left as future feature
+            // LMB on trash = clear the whole plate so player can start fresh
+            if (!hands.HasPlate()) return;
+            if (hands.GetPlate().IngredientCount == 0) return;
+
+            hands.GetPlate().ClearIngredients();
+            Debug.Log("[Trash] Plate cleared!");
+
+            if (Player.CameraEffects.Instance != null)
+                Player.CameraEffects.Instance.Shake(0.08f, 0.18f);
+
+            if (TacoTornado.UI.GameHUD.Instance != null)
+                TacoTornado.UI.GameHUD.Instance.ShowInteractPrompt("Plate cleared!");
         }
 
         public string GetInteractPrompt(PlayerHands hands)
         {
-            if (hands.IsRightHandHolding())
+            bool hasPlateIngredients = hands.HasPlate() && hands.GetPlate().IngredientCount > 0;
+            bool holdingIngredient   = hands.IsRightHandHolding();
+
+            if (holdingIngredient && hasPlateIngredients)
+                return $"[RMB] Trash {hands.GetRightHandIngredient().ingredientType}  [LMB] Clear plate";
+            if (holdingIngredient)
                 return $"[RMB] Trash {hands.GetRightHandIngredient().ingredientType}";
+            if (hasPlateIngredients)
+                return "[LMB] Clear plate and start over";
             return "Trash Bin";
         }
     }

@@ -11,6 +11,7 @@ GameObject:
   - component: {fileID: 6736754630931752575}
   - component: {fileID: -7584183157762486988}
   - component: {fileID: 4318802485023927237}
+  - component: {fileID: -795219413915233605}
   m_Layer: 8
   m_Name: Onion Prefab
   m_TagString: Untagged
@@ -82,6 +83,23 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 1, y: 1, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &-795219413915233605
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5472719856727719746}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 279a8f023aef32f4f85c3601085e59a8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TacoTornado.Ingredient
+  ingredientType: 5
+  cookState: 0
+  cookProgress: 0
+  isOnGrill: 0
+  cookProgressBar: {fileID: 0}
 --- !u!1 &7170091880536633406
 GameObject:
   m_ObjectHideFlags: 0

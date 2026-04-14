@@ -5,74 +5,57 @@ public class Crosshair : MonoBehaviour
 {
     [Header("Crosshair settings")]
     public Image crosshairImage;
-    public float defaultSize     = 20f;
-    public float interactSize    = 26f;
-    public float interactDistance = 2.5f; // match PlayerHands interactRange
+    public float defaultSize      = 16f;
+    public float interactSize     = 22f;
+    public float interactDistance = 2.5f;
 
-    [Header("Crosshair color settings")]
-    public Color defaultColor  = Color.white;
-    public Color interactColor = Color.yellow;
+    // Colors are hardcoded — do NOT rely on Inspector for these
+    // because the Inspector default was black/transparent causing the invisible crosshair bug.
+    private static readonly Color DEFAULT_COLOR  = new Color(1f, 1f, 1f, 1f);
+    private static readonly Color INTERACT_COLOR = new Color(1f, 0.85f, 0f, 1f);
 
     private Camera playerCamera;
-    private float  targetSize;
-    private Color  targetColor;
 
     void Start()
     {
         playerCamera = Camera.main;
-
-        if (crosshairImage == null)
-            crosshairImage = GetComponent<Image>();
-
-        targetSize  = defaultSize;
-        targetColor = defaultColor;
+        if (crosshairImage == null) crosshairImage = GetComponent<Image>();
 
         if (crosshairImage != null)
         {
-            RectTransform rect = crosshairImage.rectTransform;
-            rect.anchoredPosition = Vector2.zero;
-            // Make sure it's visible from the start
             crosshairImage.gameObject.SetActive(true);
-            crosshairImage.color = defaultColor;
+            crosshairImage.rectTransform.anchoredPosition = Vector2.zero;
+            crosshairImage.rectTransform.sizeDelta = new Vector2(defaultSize, defaultSize);
+            crosshairImage.color = DEFAULT_COLOR; // always start white
         }
     }
 
     void Update()
     {
-        // Re-find camera if lost (can happen after scene reload)
-        if (playerCamera == null)
-            playerCamera = Camera.main;
-
+        if (playerCamera == null) playerCamera = Camera.main;
         if (playerCamera == null || crosshairImage == null) return;
 
-        bool canInteract = CheckForInteractable();
+        if (!crosshairImage.gameObject.activeSelf)
+            crosshairImage.gameObject.SetActive(true);
 
-        targetSize  = canInteract ? interactSize  : defaultSize;
-        targetColor = canInteract ? interactColor : defaultColor;
+        bool hit = CheckForInteractable();
 
-        UpdateCrosshairAppearance();
+        // Smooth size transition
+        float target = hit ? interactSize : defaultSize;
+        crosshairImage.rectTransform.sizeDelta = Vector2.Lerp(
+            crosshairImage.rectTransform.sizeDelta,
+            new Vector2(target, target),
+            Time.deltaTime * 18f);
+
+        // Hard color set — never lerps to transparent
+        crosshairImage.color = hit ? INTERACT_COLOR : DEFAULT_COLOR;
     }
 
     bool CheckForInteractable()
     {
+        if (playerCamera == null) return false;
         Ray ray = new Ray(playerCamera.transform.position, playerCamera.transform.forward);
-
-        if (Physics.Raycast(ray, out RaycastHit hit, interactDistance))
-        {
-            // Layer 8 = Interactable
-            if (hit.collider.gameObject.layer == 8)
-                return true;
-        }
-        return false;
-    }
-
-    void UpdateCrosshairAppearance()
-    {
-        RectTransform rect = crosshairImage.rectTransform;
-        float currentSize  = rect.sizeDelta.x;
-        float newSize      = Mathf.Lerp(currentSize, targetSize, Time.deltaTime * 15f);
-        rect.sizeDelta     = new Vector2(newSize, newSize);
-
-        crosshairImage.color = Color.Lerp(crosshairImage.color, targetColor, Time.deltaTime * 15f);
+        return Physics.Raycast(ray, out RaycastHit hit, interactDistance)
+               && hit.collider.gameObject.layer == 8;
     }
 }

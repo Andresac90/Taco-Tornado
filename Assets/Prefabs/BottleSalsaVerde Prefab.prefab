@@ -82,6 +82,9 @@ PrefabInstance:
     - targetCorrespondingSourceObject: {fileID: -273063759370282654, guid: 0276a7c771d764351a8f128bfbe7d346, type: 3}
       insertIndex: -1
       addedObject: {fileID: 2046779322201803963}
+    - targetCorrespondingSourceObject: {fileID: -273063759370282654, guid: 0276a7c771d764351a8f128bfbe7d346, type: 3}
+      insertIndex: -1
+      addedObject: {fileID: 3347935511063665237}
   m_SourcePrefab: {fileID: 3150474306388093854, guid: 0276a7c771d764351a8f128bfbe7d346, type: 3}
 --- !u!1 &4890977066537429684 stripped
 GameObject:
@@ -136,3 +139,20 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.14410663, y: 0.39312, z: 0.1664}
   m_Center: {x: 0, y: 0.19656, z: 0}
+--- !u!114 &3347935511063665237
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 4890977066537429684}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 279a8f023aef32f4f85c3601085e59a8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TacoTornado.Ingredient
+  ingredientType: 6
+  cookState: 0
+  cookProgress: 0
+  isOnGrill: 0
+  cookProgressBar: {fileID: 0}

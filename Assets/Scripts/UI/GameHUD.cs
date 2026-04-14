@@ -1,6 +1,4 @@
 // GameHUD.cs — HUD for infinite mode
-// Shows: score (money), wave, orders completed, fail count, order tickets, interact prompt.
-// NO shift timer — replaced by wave counter.
 
 using System.Collections.Generic;
 using UnityEngine;
@@ -11,7 +9,6 @@ namespace TacoTornado.UI
 {
     public class GameHUD : MonoBehaviour
     {
-        // ── Singleton ─────────────────────────────────────────────────────────
         private static GameHUD _instance;
         public  static GameHUD Instance => _instance;
 
@@ -21,20 +18,17 @@ namespace TacoTornado.UI
             else { Destroy(gameObject); return; }
         }
 
-        // ── Inspector ─────────────────────────────────────────────────────────
-
         [Header("Score & Status")]
         [SerializeField] private TextMeshProUGUI moneyText;
         [SerializeField] private TextMeshProUGUI waveText;
         [SerializeField] private TextMeshProUGUI ordersCompletedText;
-        [SerializeField] private TextMeshProUGUI failCountText;       // "X / 5 failed"
+        [SerializeField] private TextMeshProUGUI failCountText;
 
         [Header("Interaction")]
         [SerializeField] private TextMeshProUGUI interactPromptText;
         [SerializeField] private Image           crosshair;
 
         [Header("Plate Status")]
-        [Tooltip("Small text showing what's on the plate right now.")]
         [SerializeField] private TextMeshProUGUI plateStatusText;
 
         [Header("Order Tickets")]
@@ -47,10 +41,7 @@ namespace TacoTornado.UI
         [SerializeField] private TextMeshProUGUI gameOverSummaryText;
 
         [Header("Wave Announce")]
-        [Tooltip("Brief full-screen text that flashes when a new wave starts.")]
         [SerializeField] private TextMeshProUGUI waveAnnounceText;
-
-        // ── Runtime ───────────────────────────────────────────────────────────
 
         private Dictionary<int, GameObject> ticketObjects = new Dictionary<int, GameObject>();
 
@@ -58,15 +49,12 @@ namespace TacoTornado.UI
 
         private void Start()
         {
-            if (gameOverPanel    != null) gameOverPanel.SetActive(false);
+            if (gameOverPanel      != null) gameOverPanel.SetActive(false);
             if (interactPromptText != null) interactPromptText.gameObject.SetActive(false);
-            if (waveAnnounceText != null) waveAnnounceText.gameObject.SetActive(false);
+            if (waveAnnounceText   != null) waveAnnounceText.gameObject.SetActive(false);
         }
 
-        private void OnEnable()
-        {
-            Invoke(nameof(SubscribeToEvents), 0f);
-        }
+        private void OnEnable()  { Invoke(nameof(SubscribeToEvents), 0f); }
 
         private void SubscribeToEvents()
         {
@@ -77,12 +65,11 @@ namespace TacoTornado.UI
                 GameManager.Instance.OnMoneyChanged  += UpdateMoney;
                 GameManager.Instance.OnGameOver      += OnGameOver;
             }
-
             if (OrderManager.Instance != null)
             {
-                OrderManager.Instance.OnNewOrder      += AddOrderTicket;
-                OrderManager.Instance.OnOrderRemoved  += RemoveOrderTicket;
-                OrderManager.Instance.OnWaveChanged   += OnWaveChanged;
+                OrderManager.Instance.OnNewOrder     += AddOrderTicket;
+                OrderManager.Instance.OnOrderRemoved += RemoveOrderTicket;
+                OrderManager.Instance.OnWaveChanged  += OnWaveChanged;
             }
         }
 
@@ -95,7 +82,6 @@ namespace TacoTornado.UI
                 GameManager.Instance.OnMoneyChanged  -= UpdateMoney;
                 GameManager.Instance.OnGameOver      -= OnGameOver;
             }
-
             if (OrderManager.Instance != null)
             {
                 OrderManager.Instance.OnNewOrder     -= AddOrderTicket;
@@ -107,7 +93,6 @@ namespace TacoTornado.UI
         private void Update()
         {
             if (GameManager.Instance == null || !GameManager.Instance.isShiftActive) return;
-
             UpdateStats();
             UpdateTicketPatience();
             UpdatePlateStatus();
@@ -119,19 +104,16 @@ namespace TacoTornado.UI
         {
             var gm = GameManager.Instance;
 
-            if (moneyText          != null) moneyText.text          = $"${gm.money:F0}";
-            if (ordersCompletedText != null) ordersCompletedText.text = $"✓ {gm.ordersCompleted}";
+            if (moneyText           != null) moneyText.text           = $"${gm.money:F0}";
+            if (ordersCompletedText != null) ordersCompletedText.text = $"Served: {gm.ordersCompleted}";
+            if (waveText            != null && OrderManager.Instance != null)
+                waveText.text = $"Wave {OrderManager.Instance.currentWave}";
 
             if (failCountText != null)
             {
-                failCountText.text  = $"✗ {gm.ordersFailed} / {gm.maxFailedOrders}";
-                failCountText.color = gm.ordersFailed >= gm.maxFailedOrders - 1
-                    ? Color.red
-                    : Color.white;
+                failCountText.text  = $"Failed: {gm.ordersFailed} / {gm.maxFailedOrders}";
+                failCountText.color = gm.ordersFailed >= gm.maxFailedOrders - 1 ? Color.red : Color.white;
             }
-
-            if (waveText != null && OrderManager.Instance != null)
-                waveText.text = $"Wave {OrderManager.Instance.currentWave}";
         }
 
         private void UpdateMoney(float amount)
@@ -159,15 +141,8 @@ namespace TacoTornado.UI
         private void UpdatePlateStatus()
         {
             if (plateStatusText == null) return;
-
-            // Find PlayerHands on camera
             var hands = FindFirstObjectByType<Player.PlayerHands>();
-            if (hands == null || !hands.HasPlate())
-            {
-                plateStatusText.text = "";
-                return;
-            }
-
+            if (hands == null || !hands.HasPlate()) { plateStatusText.text = ""; return; }
             plateStatusText.text = hands.GetPlate().GetStatusText();
         }
 
@@ -188,8 +163,8 @@ namespace TacoTornado.UI
             if (ingComp != null)
             {
                 string s = ShortName(order.tortillaType) + "\n";
-                foreach (var t in order.toppings) s += ShortName(t) + "\n";
-                foreach (var sl in order.salsas)  s += ShortName(sl) + "\n";
+                foreach (var t  in order.toppings) s += ShortName(t)  + "\n";
+                foreach (var sl in order.salsas)   s += ShortName(sl) + "\n";
                 ingComp.text = s;
             }
         }
@@ -206,20 +181,16 @@ namespace TacoTornado.UI
         private void UpdateTicketPatience()
         {
             if (OrderManager.Instance == null) return;
-
             foreach (var order in OrderManager.Instance.activeOrders)
             {
                 if (!ticketObjects.TryGetValue(order.orderId, out var ticket)) continue;
-
                 var bar = ticket.transform.Find("PatienceBar");
                 if (bar == null) continue;
-
                 var img = bar.GetComponent<Image>();
                 if (img == null) continue;
-
-                float p  = OrderManager.Instance.GetPatienceNormalized(order.orderId);
+                float p = OrderManager.Instance.GetPatienceNormalized(order.orderId);
                 img.fillAmount = p;
-                img.color      = Color.Lerp(Color.red, Color.green, p);
+                img.color = Color.Lerp(Color.red, Color.green, p);
             }
         }
 
@@ -237,7 +208,6 @@ namespace TacoTornado.UI
             waveAnnounceText.gameObject.SetActive(true);
             waveAnnounceText.text  = $"WAVE {wave}";
             waveAnnounceText.alpha = 1f;
-
             yield return new WaitForSeconds(1.2f);
 
             float elapsed = 0f;
@@ -247,7 +217,6 @@ namespace TacoTornado.UI
                 elapsed += Time.deltaTime;
                 yield return null;
             }
-
             waveAnnounceText.gameObject.SetActive(false);
         }
 
@@ -256,17 +225,11 @@ namespace TacoTornado.UI
         private void OnShiftStarted()
         {
             if (gameOverPanel != null) gameOverPanel.SetActive(false);
-
             foreach (var kvp in ticketObjects) Destroy(kvp.Value);
             ticketObjects.Clear();
         }
 
-        private void OnShiftEnded()
-        {
-            // Game over panel is shown via OnGameOver if it was a lose
-            // If somehow EndShift is called without OnGameOver (shouldn't happen in infinite mode)
-            // just silently end
-        }
+        private void OnShiftEnded() { }
 
         private void OnGameOver(string reason)
         {
@@ -274,7 +237,6 @@ namespace TacoTornado.UI
             gameOverPanel.SetActive(true);
 
             var gm = GameManager.Instance;
-
             if (gameOverTitleText != null)
                 gameOverTitleText.text = "GAME OVER";
 
@@ -283,12 +245,12 @@ namespace TacoTornado.UI
                 int wave = OrderManager.Instance != null ? OrderManager.Instance.currentWave : 0;
                 gameOverSummaryText.text =
                     $"{reason}\n\n" +
-                    $"Wave Reached:      {wave}\n" +
-                    $"Orders Served:     {gm.ordersCompleted}\n" +
-                    $"Perfect Orders:    {gm.perfectOrders}\n\n" +
-                    $"Revenue:  ${gm.shiftRevenue:F2}\n" +
-                    $"Tips:     ${gm.shiftTips:F2}\n" +
-                    $"Total:    ${gm.GetShiftProfit():F2}";
+                    $"Wave Reached:   {wave}\n" +
+                    $"Orders Served:  {gm.ordersCompleted}\n" +
+                    $"Perfect Orders: {gm.perfectOrders}\n\n" +
+                    $"Revenue: ${gm.shiftRevenue:F2}\n" +
+                    $"Tips:    ${gm.shiftTips:F2}\n" +
+                    $"Total:   ${gm.GetShiftProfit():F2}";
             }
 
             Cursor.lockState = CursorLockMode.None;

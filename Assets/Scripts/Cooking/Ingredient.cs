@@ -1,7 +1,4 @@
 // Ingredient.cs — A single ingredient object in the world.
-// In the new two-hand system, ingredients are NOT directly interactable via raycast.
-// The player interacts with Stations (IngredientSource, GrillStation) which manage ingredients.
-// This component tracks cook state and fires visual updates.
 
 using UnityEngine;
 
@@ -19,32 +16,38 @@ namespace TacoTornado
         public float cookProgress = 0f;
         public bool  isOnGrill    = false;
 
-        // Optional: child GO with a thin quad that scales Y to show cook progress
         [SerializeField] private Transform cookProgressBar;
 
-        private bool     isHeld = false;
+        private bool     isHeld   = false;
+        private bool     typeSet  = false; // tracks if type was initialized
         private float    cookTime;
         private float    burnTime;
         private Renderer rend;
 
-        // Cook state colours (used for prototype meshes — replace with materials)
         private static readonly Color RAW_COLOR     = new Color(0.88f, 0.40f, 0.35f);
         private static readonly Color COOKING_COLOR = new Color(0.92f, 0.60f, 0.20f);
         private static readonly Color COOKED_COLOR  = new Color(0.55f, 0.32f, 0.12f);
         private static readonly Color BURNT_COLOR   = new Color(0.10f, 0.07f, 0.07f);
-
-        // ── Unity ─────────────────────────────────────────────────────────────
 
         private void Awake()
         {
             rend     = GetComponentInChildren<Renderer>();
             cookTime = GameConstants.DEFAULT_COOK_TIME;
             burnTime = GameConstants.DEFAULT_BURN_TIME;
+            // Don't initialize cookState here — wait for InitializeType()
+            // which is called after ingredientType is set by the station.
+        }
 
-            // Non-proteins are always "cooked"
-            if (IngredientData.GetCategory(ingredientType) != IngredientCategory.Protein)
-                cookState = CookState.Cooked;
-
+        /// <summary>
+        /// Called by IngredientSource after setting ingredientType.
+        /// Must be called before the ingredient is used.
+        /// </summary>
+        public void InitializeType()
+        {
+            typeSet = true;
+            bool isProtein = IngredientData.GetCategory(ingredientType) == IngredientCategory.Protein;
+            cookState = isProtein ? CookState.Raw : CookState.Cooked;
+            cookProgress = 0f;
             UpdateVisual();
         }
 
@@ -54,14 +57,14 @@ namespace TacoTornado
             if (cookState == CookState.Burnt) return;
 
             cookProgress += Time.deltaTime;
-
             CookState prev = cookState;
 
-            if      (cookState == CookState.Raw     && cookProgress >= cookTime * 0.5f) cookState = CookState.Cooking;
+            if      (cookState == CookState.Raw     && cookProgress >= cookTime * 0.5f)
+                cookState = CookState.Cooking;
             else if (cookState == CookState.Cooking && cookProgress >= cookTime)
             {
                 cookState = CookState.Cooked;
-                Debug.Log($"[Ingredient] {ingredientType} cooked!");
+                Debug.Log($"[Ingredient] {ingredientType} cooked! ({cookProgress:F1}s)");
                 if (Player.CameraEffects.Instance != null)
                     Player.CameraEffects.Instance.Shake(0.04f, 0.1f);
             }
@@ -77,22 +80,17 @@ namespace TacoTornado
             UpdateProgressBar();
         }
 
-        // ── Grill API ─────────────────────────────────────────────────────────
-
         public void PlaceOnGrill()
         {
             isOnGrill    = true;
+            isHeld       = false; // critical — ensure held flag is cleared
             cookProgress = 0f;
             cookState    = CookState.Raw;
             UpdateVisual();
+            Debug.Log($"[Ingredient] {ingredientType} placed on grill, cooking starts now.");
         }
 
-        public void RemoveFromGrill()
-        {
-            isOnGrill = false;
-        }
-
-        // ── Hold API ──────────────────────────────────────────────────────────
+        public void RemoveFromGrill() { isOnGrill = false; }
 
         public void OnPickedUp()
         {
@@ -100,12 +98,7 @@ namespace TacoTornado
             if (isOnGrill) RemoveFromGrill();
         }
 
-        public void OnDropped()
-        {
-            isHeld = false;
-        }
-
-        // ── State ─────────────────────────────────────────────────────────────
+        public void OnDropped() { isHeld = false; }
 
         public bool IsCooked()
         {
@@ -115,8 +108,6 @@ namespace TacoTornado
         }
 
         public bool IsBurnt() => cookState == CookState.Burnt;
-
-        // ── Visuals ───────────────────────────────────────────────────────────
 
         private void UpdateVisual()
         {

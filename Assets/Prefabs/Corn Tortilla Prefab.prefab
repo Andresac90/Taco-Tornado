@@ -13,6 +13,7 @@ GameObject:
   - component: {fileID: 237065664608382164}
   - component: {fileID: -4046588550772773326}
   - component: {fileID: 3321781032391068010}
+  - component: {fileID: -4468063045929896641}
   m_Layer: 8
   m_Name: Corn Tortilla Prefab
   m_TagString: Untagged
@@ -140,3 +141,20 @@ BoxCollider:
   serializedVersion: 3
   m_Size: {x: 0.99999994, y: 0.99999994, z: 1}
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &-4468063045929896641
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2371584826384512660}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 279a8f023aef32f4f85c3601085e59a8, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::TacoTornado.Ingredient
+  ingredientType: 0
+  cookState: 0
+  cookProgress: 0
+  isOnGrill: 0
+  cookProgressBar: {fileID: 0}
