@@ -5999,6 +5999,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e8010fee44b026a47869c33dd1b013fc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::MainUI
+  startButton: {fileID: 274327234}
+  quitButton: {fileID: 1499589849}
 --- !u!114 &1583661963
 MonoBehaviour:
   m_ObjectHideFlags: 0

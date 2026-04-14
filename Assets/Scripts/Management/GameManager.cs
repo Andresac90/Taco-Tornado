@@ -165,5 +165,12 @@ namespace TacoTornado
         public float GetShiftProfit() => shiftRevenue + shiftTips;
         public void  SpendMoney(float amount) { money -= amount; OnMoneyChanged?.Invoke(money); }
         public bool  CanAfford(float amount)  => money >= amount;
+
+        // ── UI ────────────────────────────────────────────────────────────────
+        public void BackToMain()
+        {             
+            EndShift();
+            UnityEngine.SceneManagement.SceneManager.LoadScene("MainMenu");
+        }
     }
 }
