@@ -105,7 +105,7 @@ namespace TacoTornado.UI
             var gm = GameManager.Instance;
 
             if (moneyText           != null) moneyText.text           = $"${gm.money:F0}";
-            if (ordersCompletedText != null) ordersCompletedText.text = $"Served: {gm.ordersCompleted}";
+            if (ordersCompletedText != null) ordersCompletedText.text = $" {gm.ordersCompleted}";
             if (waveText            != null && OrderManager.Instance != null)
                 waveText.text = $"Wave {OrderManager.Instance.currentWave}";
 
