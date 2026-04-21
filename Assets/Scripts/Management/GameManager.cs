@@ -5,6 +5,7 @@
 using System;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 
 namespace TacoTornado
 {
@@ -55,6 +56,12 @@ namespace TacoTornado
         {
             if (!isShiftActive) return;
             CheckLoseConditions();
+
+            //Press ESC to go back to menu scene
+            if (Input.GetKeyDown(KeyCode.Escape))
+            {
+                SceneManager.LoadScene("Main");
+            }
         }
 
         // ── Shift ─────────────────────────────────────────────────────────────

@@ -9,9 +9,17 @@ public class MainUI : MonoBehaviour
 
     private void Start()
     {
+        // --- Mouse Setup ---
+        // Makes the cursor visible
+        Cursor.visible = true;
+
+        // Unlocks the cursor so it can move freely
+        Cursor.lockState = CursorLockMode.None;
+
         startButton.onClick.AddListener(StartGame);
         quitButton.onClick.AddListener(QuitGame);
     }
+
     public void StartGame()
     {
         SceneManager.LoadScene("GameScene");
